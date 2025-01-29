@@ -1,0 +1,1048 @@
+---
+title: "calculate_effect_sizes"
+author: "Erva"
+date: "2024-10-28"
+output: html_document
+---
+
+# set directory
+```{r}
+setwd("your_directory")
+```
+
+# input- output
+```{r}
+input="MA_Feedback_Data.csv"
+output1= "output_1_before_filters.csv"
+output2= "output_1_after_quality_check.csv"
+output3= "output_1_after_quality_check_and_removing_arbitrary_learning.csv"
+```
+
+# libraries
+```{r}
+library(esc)
+library(dplyr) 
+library(purrr)  # For map functions
+library(ggplot2)
+library(gridExtra)
+
+
+```
+
+# Parameters
+```{r}
+# Define the correlation to use when corr is NA
+corr_assumed_for_within_groups <- 0.5
+```
+
+# 0- Define Fucntions
+1. within_with_SD
+```{r}
+# Function to calculate Cohen's dz and standard error for a within-subject design
+within_with_mean_sd <- function(M1, M2, SD1, SD2, r, n) {
+  # Calculate the mean difference
+  M_diff <- M1 - M2
+  
+  # Calculate the pooled standard deviation
+  S <- sqrt((SD1^2 + SD2^2) / 2)
+  
+  # Calculate Cohen's dz using the pooled SD
+  dz <- M_diff / S
+  
+  # Calculate the standard error of Cohen's dz
+  d_se <- sqrt((2 * (1 - r) / n) + (dz^2 / (2 * n)))
+  
+  # Return effect size (dz) and its standard error
+  return(list(effect_size = dz, standard_error = d_se))
+}
+```
+
+2. within_with_se
+```{r}
+# Function to calculate Cohen's dz and standard error for a within-subject design using standard errors
+within_with_mean_se <- function(M1, M2, se1, se2, r, n) {
+  # Back-calculate standard deviations from standard errors
+  SD1 <- se1 * sqrt(n)
+  SD2 <- se2 * sqrt(n)
+  
+  # Calculate the mean difference
+  M_diff <- M1 - M2
+  
+  # Calculate the pooled standard deviation
+  S <- sqrt((SD1^2 + SD2^2) / 2)
+  
+  # Calculate Cohen's dz using the pooled SD
+  dz <- M_diff / S
+  
+  # Calculate the standard error of Cohen's dz
+  d_se <- sqrt((2 * (1 - r) / n) + (dz^2 / (2 * n)))
+  
+  # Return effect size (dz) and its standard error
+  return(list(effect_size = dz, standard_error = d_se))
+}
+```
+
+3. odd_ratio_with_ci
+```{r}
+
+odd_ratio_with_ci <- function(or, lower_ci, upper_ci) {
+  # Ensure inputs are positive and numeric
+  lower_ci <- as.numeric(lower_ci)
+  upper_ci <- as.numeric(upper_ci)
+  
+  if (is.na(lower_ci) || is.na(upper_ci) || lower_ci <= 0 || upper_ci <= 0) {
+    return(list(effect_size = NA, standard_error = NA, cohen_d = NA))
+  }
+  
+  # Calculate the log of the odds ratio and its CI bounds
+  log_or = log(or)
+  log_lower_ci = log(lower_ci)
+  log_upper_ci = log(upper_ci)
+  
+  # Compute the standard error of the log odds ratio
+  se_log_or = (log_upper_ci - log_lower_ci) / (2 * 1.96)
+  
+  # Convert log odds ratio to Cohen's d
+  cohen_d = (log_or * sqrt(3)) / pi
+  
+  # Return the log odds ratio (effect size), its standard error, and Cohen's d
+  return(list(effect_size = cohen_d, standard_error = se_log_or))
+}
+
+```
+
+4. between subject t-test with original d prime and sample sizes
+```{r}
+# Function to calculate the standard error of Cohen's d for an independent-samples design
+between_with_original_d_and_sample <- function(d, n_i, n_d) {
+  # Calculate the standard error of Cohen's d
+  d_se <- sqrt((n_i + n_d) / (n_i * n_d) + (d^2 / (2 * (n_i + n_d))))
+  
+  # Return the effect size (d) and its standard error
+  return(list(effect_size = d, standard_error = d_se))
+}
+```
+
+5. within_with_original_d_and_sample
+```{r}
+# Function to calculate Cohen's dz and standard error for a within-subjects design
+within_with_original_d_and_sample <- function(d_z, n, r) {
+  # Calculate the standard error of Cohen's dz
+  d_se <- sqrt((2 * (1 - r) / n) + (d_z^2 / (2 * n)))
+  
+  # Return effect size (dz) and its standard error
+  return(list(effect_size = d_z, standard_error = d_se))
+}
+```
+
+6. paired sample t-test (when t value and SEM is reported)
+```{r}
+# Function to calculate Cohen's d and standard error for a paired design given t-value and SEM
+paired_t_test_with_sem <- function(t_value, SEM, n) {
+  # Calculate the mean difference (M_diff)
+  M_diff <- t_value * SEM
+  
+  # Calculate the standard deviation of the differences (SD_diff)
+  SD_diff <- SEM * sqrt(n)
+  
+  # Calculate Cohen's d
+  d <- M_diff / SD_diff
+  
+  # Calculate the standard error of Cohen's d
+  d_se <- sqrt((1 / n) + (d^2 / (2 * (n - 1))))
+  
+  # Return Cohen's d and its standard error
+  return(list(effect_size = d, standard_error = d_se))
+}
+
+```
+
+7- paired sample t-test (when t value and sample size is reported)
+```{r}
+# Function to calculate Cohen's d and standard error for a paired design given t-value and sample size
+paired_t_test_with_t_value <- function(t_value, n) {
+  # Calculate Cohen's d
+  d <- t_value / sqrt(n)
+  
+  # Calculate the standard error of Cohen's d
+  d_se <- sqrt((1 / n) + (d^2 / (2 * (n - 1))))
+  
+  # Return Cohen's d and its standard error
+  return(list(effect_size = d, standard_error = d_se))
+}
+```
+
+8-within_subject_anova_f
+```{r}
+# Function to calculate Cohen's dz and standard error for a within-subject design using F-value
+within_subject_anova_f <- function(F_value, N) {
+  # Calculate Cohen's d_z
+  dz <- sqrt(F_value / N)
+  
+  # Calculate the standard error of d_z
+  d_se <- sqrt((1 / N) + (dz^2 / (2 * N)))
+  
+  # Return effect size (d_z) and its standard error
+  return(list(effect_size = dz, standard_error = d_se))
+}
+
+```
+
+9- log odd with se
+```{r}
+log_odd_with_se <- function(log_odds, se_log_odds) {
+  # Ensure inputs are numeric
+  log_odds <- as.numeric(log_odds)
+  se_log_odds <- as.numeric(se_log_odds)
+  
+  if (is.na(log_odds) || is.na(se_log_odds)) {
+    return(list(cohen_d = NA, standard_error = NA))
+  }
+  
+  # Convert log odds ratio to Cohen's d
+  cohen_d <- log_odds / (pi / sqrt(3))
+  
+  # Convert standard error of log odds to standard error of Cohen's d
+  se_cohen_d <- se_log_odds / (pi / sqrt(3))
+  
+  # Return Cohen's d and its standard error
+  return(list(cohen_d = cohen_d, standard_error = se_cohen_d))
+}
+```
+
+10- from beta (when beta and SE are reported)
+```{r}
+# Function to calculate Cohen's d and standard error for a between-subjects design using beta and SE
+between_with_beta_and_se <- function(beta, se, n) {
+  # Calculate Cohen's d
+  d <- beta / se * sqrt(1 / n)
+  
+  # Calculate the standard error of Cohen's d
+  d_se <- sqrt((1 / n) + (d^2 / (2 * (n - 1))))
+  
+  # Return effect size (d) and its standard error
+  return(list(effect_size = d, standard_error = d_se))
+}
+
+```
+
+11-from beta (when beta and SE and sample size are reported)
+```{r}
+# Function to calculate Cohen's d and standard error for a between-subjects design using beta and ample size
+between_with_beta_and_se_and_sample_size <- function(beta, se, n_total) {
+  # Calculate Cohen's d
+  d <- beta / se
+  
+  # Calculate the standard error of Cohen's d
+  d_se <- sqrt((n_total / (2 * (n_total - 1))) + (d^2 * ((n_total - 3) / (2 * (n_total - 1) * (n_total - 2)))))
+  
+  # Return effect size (d) and its standard error
+  return(list(effect_size = d, standard_error = d_se))
+}
+
+```
+
+# 1- Load the data
+
+```{r}
+data <- read.csv(input)
+```
+
+# 2- Select the necessary columns
+```{r}
+data_effect_size_calculation <- data %>%
+  select(unique_ID, expt_num, participant_design, N_total, n_i, n_d, mean_i, mean_d, sd_i, sd_d, se_i, se_d, lower_CI, upper_CI, t, SEM, F, cohens_f,F_sign_change, p, eta_square, 
+         partial_eta_square, odd_ratio, log_odd, SE_log_odd, corr, power, beta, SE_beta, SD_beta, n_point, effect_size_original, SE_original, effect_size_by_calculator, se_by_calculator,
+         effect_size_formula_to_be_used, alternative_effect_size_formula_to_be_used)
+```
+
+## 2.a- make necessary columns numeric
+```{r}
+# Convert specified columns to numeric if they are not already
+data_effect_size_calculation <- data_effect_size_calculation %>%
+  mutate(across(
+    c(N_total, n_i, n_d, mean_i, mean_d, sd_i, sd_d, se_i, se_d,
+      lower_CI, upper_CI, t, SEM, F, cohens_f, F_sign_change, p, eta_square,
+      partial_eta_square, odd_ratio, log_odd, SE_log_odd, corr, power, beta,
+      SE_beta, n_point, effect_size_original, SE_original, effect_size_by_calculator, se_by_calculator
+    ), as.numeric
+  ))
+
+# View the structure of the data to verify changes
+str(data_effect_size_calculation)
+
+```
+
+
+
+# 3- Apply fucntions to calculate effect size and se
+```{r}
+
+data_effect_size_calculation <- data_effect_size_calculation %>%
+  rowwise() %>%
+  mutate(
+    effective_corr = ifelse(is.na(corr), corr_assumed_for_within_groups, corr),  # Handling missing correlations by defaulting to 0.5
+    effect_size = case_when(
+      effect_size_formula_to_be_used == "within_with_mean_sd" ~
+        within_with_mean_sd(mean_i, mean_d, sd_i, sd_d, effective_corr, n_i)$effect_size,
+      effect_size_formula_to_be_used == "within_with_mean_se" ~
+        within_with_mean_se(mean_i, mean_d, se_i, se_d, effective_corr, n_i)$effect_size,
+effect_size_formula_to_be_used == "paired_t_test_with_sem" & !is.na(t) & !is.na(SEM) ~
+    paired_t_test_with_sem(t = t, SEM = SEM, n = n_i)$effect_size,
+      effect_size_formula_to_be_used == "paired_t_test_with_t_value" ~
+        paired_t_test_with_t_value(t_value = t, n = n_i)$effect_size,
+      effect_size_formula_to_be_used == "between_with_mean_sd" ~
+        esc_mean_sd(grp1m = mean_i, grp2m = mean_d, 
+                    grp1sd = sd_i, grp2sd = sd_d, 
+                    grp1n = n_i, grp2n = n_d, es.type = "d")$es,
+            effect_size_formula_to_be_used == "between_with_mean_sd_sign_change" ~
+        -1*(esc_mean_sd(grp1m = mean_i, grp2m = mean_d, 
+                    grp1sd = sd_i, grp2sd = sd_d, 
+                    grp1n = n_i, grp2n = n_d, es.type = "d")$es),
+      effect_size_formula_to_be_used == "between_with_mean_se" ~
+        esc_mean_se(grp1m = mean_i, grp2m = mean_d, 
+                    grp1se = se_i, grp2se = se_d, 
+                    grp1n = n_i, grp2n = n_d, es.type = "d")$es,
+      effect_size_formula_to_be_used == "odd_ratio_with_ci" ~
+        odd_ratio_with_ci(or = odd_ratio, lower_ci = lower_CI, upper_ci = upper_CI)$effect_size,
+      effect_size_formula_to_be_used == "independent_sample_t_test" ~
+        esc_t(t = t, grp1n = n_i, grp2n = n_d, es.type = "d")$es,
+      effect_size_formula_to_be_used == "between_subject_anova" ~
+ (ifelse(F_sign_change == 1, -1, 1) * esc_f(f = F, totaln = n_i + n_d, es.type = "d")$es),
+effect_size_formula_to_be_used == "between_with_original_d_and_sample" ~
+        between_with_original_d_and_sample(d = effect_size_original, n_i = n_i, n_d = n_d)$effect_size,
+      effect_size_formula_to_be_used == "within_with_original_d_and_sample" ~
+        within_with_original_d_and_sample(d_z = effect_size_original, n = n_i, r = effective_corr)$effect_size,
+      effect_size_formula_to_be_used == "within_subject_anova_f" ~ 
+        (ifelse(F_sign_change == 1, -1, 1) * within_subject_anova_f(F_value = F, N = n_i)$effect_size),
+      effect_size_formula_to_be_used == "log_odd_with_se" ~ 
+        log_odd_with_se(log_odds = log_odd, se_log_odds = SE_log_odd)$cohen_d,
+      effect_size_formula_to_be_used == "between_with_beta_and_se" ~
+        between_with_beta_and_se(beta = beta, se = SE_beta, n = n_point)$effect_size, 
+      effect_size_formula_to_be_used == "between_with_beta_and_se_and_sample_size" ~
+        between_with_beta_and_se_and_sample_size(beta = beta, se = SE_beta, n_total = N_total )$effect_size, 
+      effect_size_formula_to_be_used == "esc_beta" ~
+        esc_beta(beta=beta, sdy= SD_beta,grp1n=n_i,grp2n=n_d, es.type ="d",study = NULL)$es, 
+      TRUE ~ NA_real_  # Ensure NA is numeric
+    ),
+    standard_error = case_when(
+      effect_size_formula_to_be_used == "within_with_mean_sd" ~
+        within_with_mean_sd(mean_i, mean_d, sd_i, sd_d, effective_corr, n_i)$standard_error,
+      effect_size_formula_to_be_used == "within_with_mean_se" ~
+        within_with_mean_se(mean_i, mean_d, se_i, se_d, effective_corr, n_i)$standard_error,
+      effect_size_formula_to_be_used == "paired_t_test_with_sem" & !is.na(t) & !is.na(SEM) ~
+    paired_t_test_with_sem(t = t, SEM = SEM, n = n_i)$standard_error,
+      effect_size_formula_to_be_used == "paired_t_test_with_t_value" ~
+        paired_t_test_with_t_value(t_value = t, n = n_i)$standard_error,
+      effect_size_formula_to_be_used == "between_with_mean_sd" ~
+        esc_mean_sd(grp1m = mean_i, grp2m = mean_d, 
+                    grp1sd = sd_i, grp2sd = sd_d, 
+                    grp1n = n_i, grp2n = n_d, es.type = "d")$se,
+      effect_size_formula_to_be_used == "between_with_mean_se" ~
+        esc_mean_se(grp1m = mean_i, grp2m = mean_d, 
+                    grp1se = se_i, grp2se = se_d, 
+                    grp1n = n_i, grp2n = n_d, es.type = "d")$se,
+                  effect_size_formula_to_be_used == "between_with_mean_sd_sign_change" ~
+        esc_mean_sd(grp1m = mean_i, grp2m = mean_d, 
+                    grp1sd = sd_i, grp2sd = sd_d, 
+                    grp1n = n_i, grp2n = n_d, es.type = "d")$se,
+      effect_size_formula_to_be_used == "odd_ratio_with_ci" ~
+        odd_ratio_with_ci(or = odd_ratio, lower_ci = lower_CI, upper_ci = upper_CI)$standard_error,
+      effect_size_formula_to_be_used == "independent_sample_t_test" ~
+        esc_t(t = t, grp1n = n_i, grp2n = n_d, es.type = "d")$se,
+      effect_size_formula_to_be_used == "between_subject_anova" ~
+ esc_f(f = F, totaln = n_i + n_d, es.type = "d")$se,
+effect_size_formula_to_be_used == "between_with_original_d_and_sample" ~
+        between_with_original_d_and_sample(d = effect_size_original, n_i = n_i, n_d = n_d)$standard_error,
+      effect_size_formula_to_be_used == "within_with_original_d_and_sample" ~
+        within_with_original_d_and_sample(d_z = effect_size_original, n = n_i, r = effective_corr)$standard_error,
+      effect_size_formula_to_be_used == "within_subject_anova_f" ~ 
+        within_subject_anova_f(F_value = F, N = n_i)$standard_error,
+      effect_size_formula_to_be_used == "log_odd_with_se" ~ 
+        log_odd_with_se(log_odds = log_odd, se_log_odds = SE_log_odd)$standard_error,
+      effect_size_formula_to_be_used == "between_with_beta_and_se" ~
+        between_with_beta_and_se(beta = beta, se = SE_beta, n = n_point)$standard_error,  
+      effect_size_formula_to_be_used == "between_with_beta_and_se_and_sample_size" ~
+        between_with_beta_and_se_and_sample_size(beta = beta, se = SE_beta, n_total = N_total )$standard_error,
+      effect_size_formula_to_be_used == "esc_beta" ~
+        esc_beta(beta=beta, sdy= SD_beta,grp1n=n_i,grp2n=n_d, es.type ="d",study = NULL)$se, 
+      TRUE ~ NA_real_  # Ensure NA is numeric
+    )
+  ) %>%
+  ungroup()
+
+
+# Display the updated data_effect_size_calculation
+print(data_effect_size_calculation)
+
+```
+
+# nb studies
+```{r}
+# Calculate the total number of unique "unique_ID" values in the full dataset
+num_total_unique_IDs <- n_distinct(data_effect_size_calculation$unique_ID)
+
+# Print the total number of studies
+cat("Number of total studies that data need to be extracted:", num_total_unique_IDs, "\n")
+
+# Filter rows where effect_size_formula_to_be_used is not NA
+data_extracted <- data_effect_size_calculation %>%
+  filter(effect_size_formula_to_be_used != "" & !is.na(effect_size_formula_to_be_used))
+
+# Calculate the number of unique "unique_ID" values in the filtered data
+num_unique_IDs_read <- n_distinct(data_extracted$unique_ID)
+
+# Print the number of studies after filtering
+cat("Number of studies read and data extracted:", num_unique_IDs_read, "\n")
+
+# Step 1: Calculate the total number of rows where effect_size and standard_error are not NA
+num_effect_sizes_extracted <- data_extracted %>%
+  filter(!is.na(effect_size) & !is.na(standard_error)) %>%
+  nrow()
+
+# Print the number of effect sizes successfully extracted
+cat("Number of effect sizes extracted:", num_effect_sizes_extracted, "\n")
+
+# Step 2: Group by unique_ID and count rows per unique_ID to analyze distribution
+effect_size_distribution <- data_extracted %>%
+  group_by(unique_ID) %>%
+  summarise(row_count = n())
+
+# Horizontal bar plot for the number of effect sizes extracted per unique_ID
+nb_effect_size_per_study=ggplot(effect_size_distribution, aes(x = reorder(unique_ID, row_count), y = row_count)) +
+  geom_bar(stat = "identity", color = "black", fill = "skyblue", width = 0.8) +
+  labs(title = "Number of Effect Sizes Extracted per Study",
+       x = "Study_ID",
+       y = "Number of Effect Sizes Extracted") +
+  coord_flip() +
+    scale_y_continuous(breaks = seq(min(effect_size_distribution$row_count), 
+                                  max(effect_size_distribution$row_count), by = 1)) +
+  theme_minimal() 
+
+print(nb_effect_size_per_study)
+# Step 3: Calculate the number of unique unique_IDs where either effect_size or standard_error is NA
+num_unsuccessful_effect_sizes <- data_effect_size_calculation %>%
+  filter(is.na(effect_size) | is.na(standard_error)) %>%
+  summarise(num_unique_unsuccessful = n_distinct(unique_ID)) %>%
+  pull(num_unique_unsuccessful)
+
+# Print the number of studies where effect size calculation was unsuccessful
+cat("Number of studies where effect size calculation was unsuccessful:", num_unsuccessful_effect_sizes, "\n")
+
+
+```
+
+# 5- correlations between different calcualtion methods of effect sizes
+
+## 5.a- correlation of effect size calculated in r and effect size calculated with the calculators
+```{r}
+
+### ES 
+
+# Filter out rows where either effect_size_by_calculator or effect_size is NA
+filtered_data <- data_effect_size_calculation %>%
+  filter(!is.na(effect_size_by_calculator) & !is.na(effect_size))
+
+# Calculate the correlation between effect_size_by_calculator and effect_size
+correlation_coef <- cor(filtered_data$effect_size_by_calculator, filtered_data$effect_size)
+
+# Count the number of effect sizes
+n_effect_sizes <- nrow(filtered_data)
+n_unique_IDs <- n_distinct(filtered_data$unique_ID)
+
+
+# Define a threshold for identifying low correlation 
+threshold <- 0.1  # For example, flag rows where the difference is greater than 0.05
+
+# Add a new column showing the absolute difference between effect sizes
+filtered_data <- filtered_data %>%
+  mutate(diff = abs(effect_size_by_calculator - effect_size))
+
+# Identify rows where the absolute difference is greater than the threshold
+low_correlation_rows <- filtered_data %>%
+  filter(diff > threshold)
+
+# Create the plot
+correlation_plot=ggplot(filtered_data, aes(x = effect_size_by_calculator, y = effect_size, color = factor(unique_ID))) +
+  geom_point(alpha = 0.4, size = 3) +  # Increase transparency and adjust point size
+  geom_smooth(method = "lm", color = "blue", se = FALSE, size = 0.5, alpha = 0.7,linetype = "dashed") +  
+  labs(
+    title = "Correlation Between Effect Sizes",
+    x = "Effect Size by Web Calculator",
+    y = "Effect Size by R formulas",
+    color = "Unique ID"
+  ) +
+  annotate("text", x = min(filtered_data$effect_size_by_calculator), 
+           y = max(filtered_data$effect_size), 
+           label = paste("Correlation: ", round(correlation_coef, 3), 
+                         "\nN_effect_sizes =", n_effect_sizes,
+                         "\nN_papers =", n_unique_IDs),
+           hjust = 0, vjust = 1, size = 4, color = "red") +
+  # Add unique_ID labels for low correlation rows
+  geom_text(data = low_correlation_rows, aes(label = unique_ID), 
+           vjust = -0.5, size = 3, color = "black") +
+  theme_minimal() +
+  theme(legend.position = "right")  # Remove legend if colors are only for visual distinction
+
+print(correlation_plot)
+
+# Save the plot as a PNG file
+ggsave("correlation_btw_web_r_calculators.png", plot = correlation_plot, width = 10, height = 6, dpi = 300)
+
+
+
+# View the rows with low correlation
+print(low_correlation_rows)
+
+
+
+#### SE
+
+# Rounding the 'standard_error' column to 2 decimal places
+data_effect_size_calculation <- data_effect_size_calculation %>%
+  mutate(standard_error = round(standard_error, 2))
+
+# Filter out rows where either se_by_calculator or standard_error is NA
+filtered_se_data <- data_effect_size_calculation %>%
+  filter(!is.na(se_by_calculator) & !is.na(standard_error))
+
+# Calculate the correlation between se_by_calculator and standard_error
+correlation_se_coef <- cor(filtered_se_data$se_by_calculator, filtered_se_data$standard_error)
+
+# Count the number of standard errors
+n_standard_errors <- nrow(filtered_se_data)
+n_unique_se_IDs <- n_distinct(filtered_se_data$unique_ID)
+
+# Define a threshold for identifying low correlation 
+se_threshold <- 0.1  # For example, flag rows where the difference is greater than 0.05
+
+# Add a new column showing the absolute difference between standard errors
+filtered_se_data <- filtered_se_data %>%
+  mutate(se_diff = abs(se_by_calculator - standard_error))
+
+# Identify rows where the absolute difference is greater than the threshold
+low_correlation_se_rows <- filtered_se_data %>%
+  filter(se_diff > se_threshold)
+
+# Create the plot for standard errors
+se_correlation_plot = ggplot(filtered_se_data, aes(x = se_by_calculator, y = standard_error, color = factor(unique_ID))) +
+  geom_point(alpha = 0.4, size = 3) +
+  geom_smooth(method = "lm", color = "blue", se = FALSE, size = 0.5, alpha = 0.7, linetype = "dashed") +
+  labs(
+    title = "Correlation Between Standard Errors",
+    x = "Standard Error by Web Calculator",
+    y = "Standard Error by R Formulas",
+    color = "Unique ID"
+  ) +
+  annotate("text", x = min(filtered_se_data$se_by_calculator), 
+           y = max(filtered_se_data$standard_error), 
+           label = paste("Correlation: ", round(correlation_se_coef, 3), 
+                         "\nN_standard_errors =", n_standard_errors,
+                         "\nN_papers =", n_unique_se_IDs),
+           hjust = 0, vjust = 1, size = 4, color = "red") +
+  # Add unique_ID labels for low correlation rows
+  geom_text(data = low_correlation_se_rows, aes(label = unique_ID), 
+           vjust = -0.5, size = 3, color = "black") +
+  theme_minimal() +
+  theme(legend.position = "right")
+
+print(se_correlation_plot)
+
+# Save the plot as a PNG file
+ggsave("correlation_btw_web_r_se_calculators.png", plot = se_correlation_plot, width = 10, height = 6, dpi = 300)
+
+# View the rows with low correlation for standard errors
+print(low_correlation_se_rows)
+
+```
+
+
+## 5.b- correlation of effect size calculated in r and effect size calculated with alternative formulas
+```{r}
+# Updated data_effect_size_calculation pipeline to include between_with_beta_and_se in the alternative calculations
+data_effect_size_calculation <- data_effect_size_calculation %>%
+  rowwise() %>%
+  mutate(
+    effective_corr = ifelse(is.na(corr), corr_assumed_for_within_groups, corr),  # Handling missing correlations by defaulting to 0.5
+    effect_size_alternative = case_when(
+      alternative_effect_size_formula_to_be_used == "within_with_mean_sd" ~
+        within_with_mean_sd(mean_i, mean_d, sd_i, sd_d, effective_corr, n_i)$effect_size,
+      alternative_effect_size_formula_to_be_used == "within_with_mean_se" ~
+        within_with_mean_se(mean_i, mean_d, se_i, se_d, effective_corr, n_i)$effect_size,
+      alternative_effect_size_formula_to_be_used == "paired_t_test_with_sem" ~
+        paired_t_test_with_sem(t = t, SEM = SEM, n = n_i)$effect_size,
+      alternative_effect_size_formula_to_be_used == "paired_t_test_with_t_value" ~
+        paired_t_test_with_t_value(t_value = t, n = n_i)$effect_size,
+      alternative_effect_size_formula_to_be_used == "between_with_mean_sd" ~
+        esc_mean_sd(grp1m = mean_i, grp2m = mean_d, 
+                    grp1sd = sd_i, grp2sd = sd_d, 
+                    grp1n = n_i, grp2n = n_d, es.type = "d")$es,
+            effect_size_formula_to_be_used == "between_with_mean_sd_sign_change" ~
+        -1*(esc_mean_sd(grp1m = mean_i, grp2m = mean_d, 
+                    grp1sd = sd_i, grp2sd = sd_d, 
+                    grp1n = n_i, grp2n = n_d, es.type = "d")$es),
+      alternative_effect_size_formula_to_be_used == "between_with_mean_se" ~
+        esc_mean_se(grp1m = mean_i, grp2m = mean_d, 
+                    grp1se = se_i, grp2se = se_d, 
+                    grp1n = n_i, grp2n = n_d, es.type = "d")$es,
+      alternative_effect_size_formula_to_be_used == "odd_ratio_with_ci" ~
+        odd_ratio_with_ci(or = odd_ratio, lower_ci = lower_CI, upper_ci = upper_CI)$effect_size,
+      alternative_effect_size_formula_to_be_used == "independent_sample_t_test" ~
+        esc_t(t = t, grp1n = n_i, grp2n = n_d, es.type = "d")$es,
+      alternative_effect_size_formula_to_be_used == "between_subject_anova" ~
+       (ifelse(F_sign_change == 1, -1, 1) * esc_f(f = F, totaln = n_i + n_d, es.type = "d")$es),
+      alternative_effect_size_formula_to_be_used == "within_with_original_d_and_sample" ~
+        within_with_original_d_and_sample(d_z = effect_size_original, n = n_i, r = effective_corr)$effect_size,
+      alternative_effect_size_formula_to_be_used == "between_with_original_d_and_sample" ~
+        between_with_original_d_and_sample(d = effect_size_original, n_i = n_i, n_d = n_d)$effect_size,
+      alternative_effect_size_formula_to_be_used == "within_subject_anova_f" ~ 
+        (ifelse(F_sign_change == 1, -1, 1) * within_subject_anova_f(F_value = F, N = n_i)$effect_size), 
+      alternative_effect_size_formula_to_be_used == "log_odd_with_se" ~ 
+        log_odd_with_se(log_odds = log_odd, se_log_odds = SE_log_odd)$cohen_d,
+      alternative_effect_size_formula_to_be_used == "between_with_beta_and_se" ~
+        between_with_beta_and_se(beta = beta, se = SE_beta, n = n_point)$effect_size,  # New function added here
+            alternative_effect_size_formula_to_be_used == "between_with_beta_and_se_and_sample_size" ~
+        between_with_beta_and_se_and_sample_size(beta = beta, se = SE_beta, n_total = N_total )$effect_size,
+      alternative_effect_size_formula_to_be_used == "esc_beta" ~
+        esc_beta(beta=beta, sdy= SD_beta,grp1n=n_i,grp2n=n_d, es.type ="d",study = NULL)$es, 
+      TRUE ~ NA_real_  # Ensure NA is numeric
+    ),
+    standard_error_alternative = case_when(
+      alternative_effect_size_formula_to_be_used == "within_with_mean_sd" ~
+        within_with_mean_sd(mean_i, mean_d, sd_i, sd_d, effective_corr, n_i)$standard_error,
+      alternative_effect_size_formula_to_be_used == "within_with_mean_se" ~
+        esc_f(f = F, grp1n = n_i, grp2n = n_d, es.type = "d")$se,
+      alternative_effect_size_formula_to_be_used == "paired_t_test_with_sem" ~
+        paired_t_test_with_sem(t = t, SEM = SEM, n = n_i)$standard_error,
+      alternative_effect_size_formula_to_be_used == "paired_t_test_with_t_value" ~
+        paired_t_test_with_t_value(t_value = t, n = n_i)$standard_error,
+      alternative_effect_size_formula_to_be_used == "between_with_mean_sd" ~
+        esc_mean_sd(grp1m = mean_i, grp2m = mean_d, 
+                    grp1sd = sd_i, grp2sd = sd_d, 
+                    grp1n = n_i, grp2n = n_d, es.type = "d")$se,
+                  effect_size_formula_to_be_used == "between_with_mean_sd_sign_change" ~
+        esc_mean_sd(grp1m = mean_i, grp2m = mean_d, 
+                    grp1sd = sd_i, grp2sd = sd_d, 
+                    grp1n = n_i, grp2n = n_d, es.type = "d")$se,
+      alternative_effect_size_formula_to_be_used == "between_with_mean_se" ~
+        esc_mean_se(grp1m = mean_i, grp2m = mean_d, 
+                    grp1se = se_i, grp2se = se_d, 
+                    grp1n = n_i, grp2n = n_d, es.type = "d")$se,
+      alternative_effect_size_formula_to_be_used == "odd_ratio_with_ci" ~
+        odd_ratio_with_ci(or = odd_ratio, lower_ci = lower_CI, upper_ci = upper_CI)$standard_error,
+      alternative_effect_size_formula_to_be_used == "independent_sample_t_test" ~
+        esc_t(t = t, grp1n = n_i, grp2n = n_d, es.type = "d")$se,
+      alternative_effect_size_formula_to_be_used == "between_subject_anova" ~
+ esc_f(f = F, totaln = n_i + n_d, es.type = "d")$se,
+alternative_effect_size_formula_to_be_used == "within_with_original_d_and_sample" ~
+        within_with_original_d_and_sample(d_z = effect_size_original, n = n_i, r = effective_corr)$standard_error,
+      alternative_effect_size_formula_to_be_used == "between_with_original_d_and_sample" ~
+        between_with_original_d_and_sample(d = effect_size_original, n_i = n_i, n_d = n_d)$standard_error,
+      alternative_effect_size_formula_to_be_used == "within_subject_anova_f" ~ 
+        within_subject_anova_f(F_value = F, N = n_i)$standard_error, 
+      alternative_effect_size_formula_to_be_used == "log_odd_with_se" ~ 
+        log_odd_with_se(log_odds = log_odd, se_log_odds = SE_log_odd)$standard_error,
+      alternative_effect_size_formula_to_be_used == "between_with_beta_and_se" ~
+        between_with_beta_and_se(beta = beta, se = SE_beta, n = n_point)$standard_error,  # New function added here
+alternative_effect_size_formula_to_be_used == "between_with_beta_and_se_and_sample_size" ~
+        between_with_beta_and_se_and_sample_size(beta = beta, se = SE_beta, n_total = N_total )$standard_error,
+     alternative_effect_size_formula_to_be_used == "esc_beta" ~
+        esc_beta(beta=beta, sdy= SD_beta,grp1n=n_i,grp2n=n_d, es.type ="d",study = NULL)$se, 
+      TRUE ~ NA_real_  # Ensure NA is numeric
+    )
+  ) %>%
+  ungroup()
+
+# Display the updated data_effect_size_calculation
+print(data_effect_size_calculation)
+
+# Calculate common axis limits for each plot
+# Filter rows where both effect_size and effect_size_alternative are not NA
+shared_effect_size_rows <- data_effect_size_calculation %>%
+  filter(!is.na(effect_size) & !is.na(effect_size_alternative))
+
+# Set axis limits based on the filtered shared rows for effect sizes
+effect_size_limits <- range(c(shared_effect_size_rows$effect_size, shared_effect_size_rows$effect_size_alternative), na.rm = TRUE)
+
+# Filter rows where both standard_error and standard_error_alternative are not NA
+shared_standard_error_rows <- data_effect_size_calculation %>%
+  filter(!is.na(standard_error) & !is.na(standard_error_alternative))
+
+# Set axis limits based on the filtered shared rows for standard errors
+standard_error_limits <- range(c(shared_standard_error_rows$standard_error, shared_standard_error_rows$standard_error_alternative), na.rm = TRUE)
+
+# Calculate correlation coefficients
+correlation_effect_size <- cor(data_effect_size_calculation$effect_size, data_effect_size_calculation$effect_size_alternative, use = "complete.obs")
+correlation_standard_error <- cor(data_effect_size_calculation$standard_error, data_effect_size_calculation$standard_error_alternative, use = "complete.obs")
+
+# Plot 1: Correlation between effective_corr and effect_size_alternative
+plot1 <- ggplot(data_effect_size_calculation, aes(x = effect_size, y = effect_size_alternative)) +
+  geom_point(color = "blue") +
+  geom_smooth(method = "lm", color = "darkblue", se = FALSE) +  # Add a correlation line
+  labs(title = "",
+       x = "Effect Size Primary",
+       y = "Effect Size Alternative") +
+  theme_minimal() +
+  xlim(effect_size_limits) + ylim(effect_size_limits) +  # Set same x and y limits
+  annotate("text", x = effect_size_limits[1] + 0.1, y = effect_size_limits[2] - 0.1, 
+           label = paste("r =", round(correlation_effect_size, 2)), 
+           color = "darkblue", size = 5, hjust = 0)
+
+# Plot 2: Correlation between standard_error and standard_error_alternative
+plot2 <- ggplot(data_effect_size_calculation, aes(x = standard_error, y = standard_error_alternative)) +
+  geom_point(color = "red") +
+  geom_smooth(method = "lm", color = "darkred", se = FALSE) +  # Add a correlation line
+  labs(title = "",
+       x = "Standard Error",
+       y = "Standard Error Alternative") +
+  theme_minimal() +
+  xlim(standard_error_limits) + ylim(standard_error_limits) +  # Set same x and y limits
+  annotate("text", x = standard_error_limits[1] + 0.001, y = standard_error_limits[2] - 0.001, 
+           label = paste("r =", round(correlation_standard_error, 2)), 
+           color = "darkred", size = 5, hjust = 0)
+
+# Display both plots side by side
+combined_plot= grid.arrange(plot1, plot2, ncol = 2)
+
+ggsave("alterantive_calculations_correlation_plot.png", plot = combined_plot, width = 12, height = 6, dpi = 300)
+
+
+```
+
+## 5.c- correlation of effect size calculated in r and original effect size directly reported in the papers (if reported)
+```{r}
+library(ggplot2)
+
+# Calculate the correlation coefficient between effect_size_original and effect_size
+correlation_coefficient <- cor(data_effect_size_calculation$effect_size_original,
+                               data_effect_size_calculation$effect_size, use = "complete.obs")
+
+# Set axis limits based on the range of both variables
+shared_rows <- data_effect_size_calculation %>%
+  filter(!is.na(effect_size_original) & !is.na(effect_size))
+
+# Set axis limits based on the range of the filtered shared rows
+axis_limits <- range(c(shared_rows$effect_size_original, shared_rows$effect_size), na.rm = TRUE)
+
+
+# Plot with same axis limits, correlation line, and annotated correlation coefficient
+original_and_calculated_effect_size_correlation <- ggplot(data_effect_size_calculation, aes(x = effect_size_original, y = effect_size)) +
+  geom_point(color = "blue") +
+  geom_smooth(method = "lm", color = "red", se = FALSE) +  # Add a linear regression line
+  labs(title = "Correlation between Effect Size Original and Effect Size Calculated",
+       x = "Effect Size Original (Reported in the study)",
+       y = "Effect Size Calculated") +
+  theme_minimal() +
+  xlim(axis_limits) + ylim(axis_limits) +  # Set the same limits for both axes
+  annotate("text", x = axis_limits[1] + 0.1, y = axis_limits[2] - 0.1, 
+           label = paste("r =", round(correlation_coefficient, 2)), 
+           color = "red", size = 5, hjust = 0)  # Annotate correlation coefficient
+
+print(original_and_calculated_effect_size_correlation)
+
+ggsave("original_effect_size_correlation_plot.png", plot = original_and_calculated_effect_size_correlation, width = 12, height = 6, dpi = 300)
+
+
+```
+
+# sample_size per study
+
+```{r}
+data_effect_size_calculation$n <- ifelse(
+  data_effect_size_calculation$participant_design == "within",
+  data_effect_size_calculation$n_i,
+  data_effect_size_calculation$n_i + data_effect_size_calculation$n_d
+)
+
+```
+
+
+# 6- hedges g
+```{r}
+data_effect_size_calculation$hedges_g <- esc::hedges_g(
+  data_effect_size_calculation$effect_size,
+  data_effect_size_calculation$n
+)
+
+# Calculate variance of Hedges' g
+
+# Calculate J manually
+data_effect_size_calculation$J <- 1 - (3 / (4 * data_effect_size_calculation$n - 9))
+
+# Calculate the standard error of Hedges' g directly
+data_effect_size_calculation$se_g <- with(data_effect_size_calculation, J * standard_error)
+
+
+```
+
+
+# 7- save data
+
+## 7.a - save output_1_before_filters.csv
+```{r}
+# Select the specified columns
+columns_to_save <- c(
+  "effective_corr",
+  "effect_size",
+  "standard_error",
+  "effect_size_alternative",
+  "standard_error_alternative",
+  "n",
+  "hedges_g",
+  "se_g"
+)
+
+# Filter the dataset
+filtered_data <- data_effect_size_calculation[, columns_to_save]
+
+
+# Merge the filtered data back into the original dataset
+merged_data <- cbind(data, filtered_data)
+
+# Save to CSV
+write.csv(merged_data, output1, row.names = FALSE)
+```
+
+
+## 7.b- save output_1_after_quality_check.csv
+```{r}
+# Step 1: Identify the last 14 columns ( excluding the very last one) which are the columns for the quality assessment
+cols_to_check <- tail(colnames(data), 15)[-15]
+
+# Step 2: Remove rows where any of these columns contain 'no'
+# This creates a logical matrix where TRUE represents the presence of 'no'
+rows_with_no <- apply(merged_data[, cols_to_check], 1, function(x) any(x == "no", na.rm = TRUE))
+
+# Filter out these rows
+cleaned_data <- merged_data[!rows_with_no, ]
+
+# Step 3: Save the cleaned dataset to a CSV file
+write.csv(cleaned_data, output2, row.names = FALSE)
+```
+
+## 7.c- save output_1_after_quality_check_and_removing_arbitrary_learning.csv
+```{r}
+non_arbitrary_data<- cleaned_data[cleaned_data$arbitrary_learning != "yes", ]
+write.csv(non_arbitrary_data, output3, row.names = FALSE)
+```
+
+
+# 8- Sensitivity analysis - within correlation
+
+```{r}
+library(dplyr)
+library(purrr)
+library(ggplot2)
+library(patchwork)
+library(esc)
+library(robumeta)
+library(rstatix)  # For easy ANOVA
+
+# Assume data_effect_size_calculation and necessary functions are already defined
+# Create a sequence of correlation values from 0 to 1
+correlation_values <- seq(0, 1, by = 0.1)
+
+# Function to apply for each correlation value and calculate the effects on Hedges' g
+perform_analysis <- function(corr) {
+  data <- data_effect_size_calculation %>%
+    mutate(
+      effective_corr = ifelse(is.na(corr), corr_assumed_for_within_groups, corr),
+      effect_size = case_when(
+        effect_size_formula_to_be_used == "within_with_mean_sd" ~
+          within_with_mean_sd(mean_i, mean_d, sd_i, sd_d, effective_corr, n_i)$effect_size,
+        effect_size_formula_to_be_used == "within_with_mean_se" ~
+          within_with_mean_se(mean_i, mean_d, se_i, se_d, effective_corr, n_i)$effect_size,
+        effect_size_formula_to_be_used == "paired_t_test_with_sem" & !is.na(t) & !is.na(SEM) ~
+          paired_t_test_with_sem(t = t, SEM = SEM, n = n_i)$effect_size,
+        effect_size_formula_to_be_used == "paired_t_test_with_t_value" & !is.na(t) ~
+          paired_t_test_with_t_value(t_value = t, n = n_i)$effect_size,
+        effect_size_formula_to_be_used == "between_with_mean_sd" ~
+          esc_mean_sd(grp1m = mean_i, grp2m = mean_d, 
+                      grp1sd = sd_i, grp2sd = sd_d, 
+                      grp1n = n_i, grp2n = n_d, es.type = "d")$es,
+        effect_size_formula_to_be_used == "between_with_mean_sd_sign_change" ~
+          -1 * esc_mean_sd(grp1m = mean_i, grp2m = mean_d, 
+                           grp1sd = sd_i, grp2sd = sd_d, 
+                           grp1n = n_i, grp2n = n_d, es.type = "d")$es,
+        effect_size_formula_to_be_used == "between_with_mean_se" ~
+          esc_mean_se(grp1m = mean_i, grp2m = mean_d, 
+                      grp1se = se_i, grp2se = se_d, 
+                      grp1n = n_i, grp2n = n_d, es.type = "d")$es,
+        effect_size_formula_to_be_used == "odd_ratio_with_ci" ~
+          odd_ratio_with_ci(or = odd_ratio, lower_ci = lower_CI, upper_ci = upper_CI)$effect_size,
+        effect_size_formula_to_be_used == "independent_sample_t_test" ~
+          esc_t(t = t, grp1n = n_i, grp2n = n_d, es.type = "d")$es,
+        effect_size_formula_to_be_used == "between_subject_anova" ~
+          (ifelse(F_sign_change == 1, -1, 1) * esc_f(f = F, totaln = n_i + n_d, es.type = "d")$es),
+        effect_size_formula_to_be_used == "between_with_original_d_and_sample" ~
+          between_with_original_d_and_sample(d = effect_size_original, n_i = n_i, n_d = n_d)$effect_size,
+        effect_size_formula_to_be_used == "within_with_original_d_and_sample" ~
+          within_with_original_d_and_sample(d_z = effect_size_original, n = n_i, r = effective_corr)$effect_size,
+        effect_size_formula_to_be_used == "within_subject_anova_f" ~ 
+          (ifelse(F_sign_change == 1, -1, 1) * within_subject_anova_f(F_value = F, N = n_i)$effect_size),
+        effect_size_formula_to_be_used == "log_odd_with_se" ~ 
+          log_odd_with_se(log_odds = log_odd, se_log_odds = SE_log_odd)$cohen_d,
+        effect_size_formula_to_be_used == "between_with_beta_and_se" ~
+          between_with_beta_and_se(beta = beta, se = SE_beta, n = n_point)$effect_size, 
+        effect_size_formula_to_be_used == "between_with_beta_and_se_and_sample_size" ~
+          between_with_beta_and_se_and_sample_size(beta = beta, se = SE_beta, n_total = N_total )$effect_size, 
+        effect_size_formula_to_be_used == "esc_beta" ~
+          esc_beta(beta=beta, sdy= SD_beta,grp1n=n_i,grp2n=n_d, es.type ="d",study = NULL)$es, 
+        TRUE ~ NA_real_
+      ),
+      standard_error = case_when(
+                effect_size_formula_to_be_used == "within_with_mean_sd" ~
+        within_with_mean_sd(mean_i, mean_d, sd_i, sd_d, effective_corr, n_i)$standard_error,
+      effect_size_formula_to_be_used == "within_with_mean_se" ~
+        within_with_mean_se(mean_i, mean_d, se_i, se_d, effective_corr, n_i)$standard_error,
+      effect_size_formula_to_be_used == "paired_t_test_with_sem" & !is.na(t) & !is.na(SEM) ~
+    paired_t_test_with_sem(t = t, SEM = SEM, n = n_i)$standard_error,
+      effect_size_formula_to_be_used == "paired_t_test_with_t_value" ~
+        paired_t_test_with_t_value(t_value = t, n = n_i)$standard_error,
+      effect_size_formula_to_be_used == "between_with_mean_sd" ~
+        esc_mean_sd(grp1m = mean_i, grp2m = mean_d, 
+                    grp1sd = sd_i, grp2sd = sd_d, 
+                    grp1n = n_i, grp2n = n_d, es.type = "d")$se,
+      effect_size_formula_to_be_used == "between_with_mean_se" ~
+        esc_mean_se(grp1m = mean_i, grp2m = mean_d, 
+                    grp1se = se_i, grp2se = se_d, 
+                    grp1n = n_i, grp2n = n_d, es.type = "d")$se,
+                  effect_size_formula_to_be_used == "between_with_mean_sd_sign_change" ~
+        esc_mean_sd(grp1m = mean_i, grp2m = mean_d, 
+                    grp1sd = sd_i, grp2sd = sd_d, 
+                    grp1n = n_i, grp2n = n_d, es.type = "d")$se,
+      effect_size_formula_to_be_used == "odd_ratio_with_ci" ~
+        odd_ratio_with_ci(or = odd_ratio, lower_ci = lower_CI, upper_ci = upper_CI)$standard_error,
+      effect_size_formula_to_be_used == "independent_sample_t_test" ~
+        esc_t(t = t, grp1n = n_i, grp2n = n_d, es.type = "d")$se,
+      effect_size_formula_to_be_used == "between_subject_anova" ~
+ esc_f(f = F, totaln = n_i + n_d, es.type = "d")$se,
+effect_size_formula_to_be_used == "between_with_original_d_and_sample" ~
+        between_with_original_d_and_sample(d = effect_size_original, n_i = n_i, n_d = n_d)$standard_error,
+      effect_size_formula_to_be_used == "within_with_original_d_and_sample" ~
+        within_with_original_d_and_sample(d_z = effect_size_original, n = n_i, r = effective_corr)$standard_error,
+      effect_size_formula_to_be_used == "within_subject_anova_f" ~ 
+        within_subject_anova_f(F_value = F, N = n_i)$standard_error,
+      effect_size_formula_to_be_used == "log_odd_with_se" ~ 
+        log_odd_with_se(log_odds = log_odd, se_log_odds = SE_log_odd)$standard_error,
+      effect_size_formula_to_be_used == "between_with_beta_and_se" ~
+        between_with_beta_and_se(beta = beta, se = SE_beta, n = n_point)$standard_error,  
+      effect_size_formula_to_be_used == "between_with_beta_and_se_and_sample_size" ~
+        between_with_beta_and_se_and_sample_size(beta = beta, se = SE_beta, n_total = N_total )$standard_error,
+      effect_size_formula_to_be_used == "esc_beta" ~
+        esc_beta(beta=beta, sdy= SD_beta,grp1n=n_i,grp2n=n_d, es.type ="d",study = NULL)$se, 
+        TRUE ~ NA_real_
+      )
+    )
+
+  # Calculate Hedges' g
+  data$hedges_g <- esc::hedges_g(
+    data$effect_size,
+    data$n
+  )
+
+  # Calculate variance of Hedges' g
+  data$J <- 1 - (3 / (4 * data$n - 9))
+  data$se_g <- with(data, J * standard_error)
+  data$vi <- data$se_g^2
+
+  # Conduct meta-analysis with the robu function from the robumeta package
+  g_feedback_time_corr <- tryCatch({
+    robu(formula = hedges_g ~ 1, data = data,
+         studynum = unique_ID, var.eff.size = vi,
+         rho = corr,  modelweights = "CORR", small = FALSE)
+  }, error = function(e) NULL)
+
+  
+  # Extract results from robu output
+  if (!is.null(g_feedback_time_corr) && "reg_table" %in% names(g_feedback_time_corr)) {
+    reg_table <- g_feedback_time_corr$reg_table
+    pooled_g_by_model <- reg_table$b.r[1]
+    pooled_se_by_model <- reg_table$SE[1]
+  } else {
+    pooled_g_by_model <- NA
+    pooled_se_by_model <- NA
+  }
+  
+  # Return summary information
+  summary_info <- list(
+    avg_effect_size = mean(data$effect_size, na.rm = TRUE),
+    avg_standard_error = mean(data$standard_error, na.rm = TRUE),
+    pooled_g_by_model = pooled_g_by_model,
+    pooled_se_by_model = pooled_se_by_model,
+    corr_assumed = corr
+  )
+  
+  return(summary_info)
+}
+
+# Apply the function across all correlation values and compile the results into a dataframe
+results <- map_df(correlation_values, perform_analysis)
+
+# Pivoting results for plotting
+results_long <- results %>%
+  tidyr::pivot_longer(
+    cols = c(avg_effect_size, avg_standard_error, pooled_g_by_model, pooled_se_by_model),
+    names_to = "measure_type",
+    values_to = "value"
+  )
+
+# Plot the results with dual y-axes
+plot_results <- ggplot(results_long, aes(x = corr_assumed, y = value, color = measure_type)) +
+  geom_line() +  # Add lines to connect points
+  geom_point() +  # Add points to mark data points
+  facet_wrap(~ measure_type, scales = "free_y", ncol = 2) +  # Create facets with free y-axes
+  labs(
+    title = "Impact of Correlation Assumption on Metrics",
+    x = "Assumed Correlation",
+    y = "Metric Values"
+  ) +
+  theme_minimal() +  # Use a minimal theme
+  scale_color_manual(values = c("blue", "red", "green", "black")) +  # Set custom colors for different metrics
+  theme(
+    strip.background = element_blank(),  # Remove background of facet labels
+    strip.text.x = element_text(size = 12, face = "bold"),  # Bold facet labels
+    axis.text = element_text(color = "black"),  # Ensure axis text is clearly visible
+    axis.title = element_text(size = 14),  # Increase size of axis titles
+    plot.title = element_text(hjust = 0.5)  # Center the plot title
+  )
+
+print(plot_results)
+
+```
+
+```{r}
+library(gt)
+
+# Create a GT table from the results data frame
+results_table <- gt(data = results)
+
+# Customize the table to enhance its appearance
+results_table_formatted <- results_table %>%
+  tab_header(
+    title = "Impact of Correlation Assumption on Metrics"
+  ) %>%
+  cols_label(
+    avg_effect_size = "Average Effect Size",
+    avg_standard_error = "Average Standard Error",
+    pooled_g_by_model = "Pooled g by model",
+    pooled_se_by_model = "SE Model",
+    corr_assumed = "Correlation Assumed"
+  ) %>%
+  fmt_number(
+    columns = vars(avg_effect_size, avg_standard_error,pooled_g_by_model, pooled_se_by_model),
+    decimals = 4
+  ) %>%
+  tab_options(
+    heading.background.color = "gray",
+    heading.title.font.size = 14,
+    column_labels.font.size = 12,
+    data_row.padding = px(5),
+    table.font.size = 10
+  )
+
+# Print the formatted table
+print(results_table_formatted)
+
+```
+
