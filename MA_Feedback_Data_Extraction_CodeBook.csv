@@ -1,0 +1,180 @@
+Field Name ,Description,Type,Format,Example,Required?,Notes
+ID_from_deicison_sheet,The ID of the study from the MA_Feedback_Decision Spreadsheet,string,unique numeric,123,"Yes, default",
+Paper Description,,,,,,
+Title,Title of the paper from the MA_Feedback_Decision Spreadsheet,string,text,"""Learning Feedback Effects""","Yes, default",
+unique_ID,"Last name of first author + year, and letter if necessary",string,authorYYYY[a-z],smith2015a,"Yes, default",All small caps
+long_cite,Full APA citation,string,APA citation format,"Smith, A. B. (2015). Feedback in Learning. Journal of Edu. Res., 89, 50-60.","Yes, default",
+Year,Publication year of the study,number,YYYY,2015,"Yes, default",
+Source,Search source of the paper (from MA_Feedback_Decision Spreadsheet),string,text,"WoS search_first
+Scopus search_first
+ERIC search_first","Yes, default",
+publication_type,Type of publication,string,"journal, proceeding, chapter",journal,"Yes, default",
+coder,first letters of first and last names of the primary coder,string,text or initials,EK,"Yes, default",
+peer_reviewed,Whether the study was peer-reviewed,options,"yes, no",yes,"Yes, default",
+country_data_collected_from,Country where the study was performed/data collected,string,text,United States,"Yes, default",
+Research_design,Type of research design,string,"Experimental, quasi-experimental",Experimental,"Yes, default",
+Expt_num,Experiment/study number in the paper,number,"copied directly from the paper's numbering, if there are no numbers default to 1",1; 2 (if paper has Experiments 1 and 2),"Yes, default",
+if_exp_num_not_1_same_subject,"if the exp_num is not 1, then whether the same participant were used in the experiment that was already used in the experiment 1",options,"same, different, partially_same",same,Required only if the Exp_num is not 1,
+Expt_num,Experiment/study number in the paper,number,integer,1,Yes,
+A. Moderators-Preregistered [purple],,,,,,
+feedback_type,Type of feedback given in the study,options,"Verification, Correct_response, Try again, Error flagging, Elaborated",,Yes,Refer to Shute (2008) Table 1 or Feedback_types tab for more explanation
+delay_definition,Basis for delay (time or items),string,"item: Delay based on the number of items.
+time: Delay based on time.
+",time,Yes,
+feedback_delay_difference,Difference in length of delay between immediate and delayed feedback,number,"If 'delay_definition' is time, the amount is specified in seconds (e.g., 10 seconds).
+If 'delay_definition' is item, the amount is specified in number of items (e.g., 3 items).
+",10 seconds,Yes,
+feedback_delay_difference_converted_to_time(sec),Difference in length of delay between immediate and delayed feedback converted to time (sec) based on the other informations reported in the paper,number,,10,Yes(if it can be converted),
+educational_level,Educational domain of study,options,"Primary Education: Involves the first years of formal education from around age 5 to 11.
+Secondary Education: Typically covers education from ages 12 to 18.
+Tertiary Education: Encompasses all post-secondary education, including universities, colleges, and vocational schools.
+Adult Education: Includes formal and informal education undertaken by adults outside traditional schooling.
+Mixed
+",Tertiary Education,Yes,
+learning_domain,Educational domain,options,"Language Learning: Includes all tasks related to learning and using language, such as language acquisition, reading comprehension, and potentially rote memorization if it specifically pertains to language (like vocabulary learning).
+STEM: Retains its scope covering science, technology, engineering, and mathematics-related studies.
+Social Sciences: Encompasses studies related to social behavior, cognition, societal issues, and potentially aspects of human interactions and communication that don't fit neatly into language learning.
+Arts: Covers studies focused on creative processes in visual arts, music, and other forms of artistic expression.
+General Cognitive Skills: This category includes cognitive tasks that don't specifically fall into language or STEM, such as association tasks, category learning, probabilistic learning, graphical reasoning, and general memory tasks.
+Mixed: Maintains its role for studies that span multiple domains or have interdisciplinary focuses.
+Reading comprehension",STEM,Yes,"If training and post-test differ, report the training learning domain"
+task_level,"Type of cognitive task, based on Bloom’s Taxonomy",string,"Lower order: 
+Knowledge
+Comprehension
+Remember
+Understand
+Recall
+Reproduction
+
+Higher order: 
+Application
+Analysis
+Synthesis
+Evaluation
+Apply
+Analyze
+Evaluate and Create
+Basic Application of Skills
+Strategic Thinking
+Extended Thinking
+",lower_order,Yes,"If training and post-test differ, report the training task level"
+experimental_vs_curriculum_based_task,Whether the task is research-specific or integrated with curriculum,string,"Experimental Learning Task: Designed solely for research to test specific learning processes, often not related to practical applications.
+Curriculum-Based Learning Task: Integrated with real curriculum, directly benefiting learners' educational or professional goals.
+",Experimental Learning Task,Yes,
+Prior Knowledge Adjustment,Whether effect sizes adjust for participants’ prior knowledge,options,"Adjusted, Not_adjusted",Adjusted,Yes,
+B. Moderators Exploratory [green],,,,,,
+B.1 Study-level [light_green],,,,,,
+arbitrary_learning,whether the learning task is arbitrary or not,,Yes if arbitrary and No if not,,,
+participants_have_prior_knowledge_on_task,"Whether a task that is learned directly inside the study (no), or a task that participants already have some kind of knowledge on (yes)",,,,,
+Study_setting,setting of study,string,"Lab_computer, Classroom_computer, distance_education",Lab_computer,no,
+Memory_type,type of memory,string,"Episodic, Semantic, other",Semantic,no,
+mean_age,,,,,,
+sd_age,,,,,,
+min_age,minimum age of sample,number,integer,18,no,
+max_age,maximum age of sample,number,integer,25,no,
+gender,proportion female,number,float,0.6,no,Example: 0.6 if 60% female
+answer_type_in_training,,,,,,
+learning_material_type_in_training,type of question in training,string,"MCQ, Single word, Short open answer, Longer answers",MCQ,no,"If training and post-test differ, report the training question type"
+participant_design,groups comparison for effect size,string,Between or Within,Between,no,
+study_structure,study phase structure,string,"Pretest-Training-Posttest, Pretest-Training, Training-Posttest",Pretest-Training-Posttest,no,
+conditions_order,conditions order in study,string,"Counterbalanced, Not_counterbalanced, Simultaneous",Counterbalanced,no,
+assignment_participants,assignment procedure,string,"Randomly, Pseudorandom, Non-random",Randomly,no,
+training_duration,duration of training in days,string,text,7 days,no,
+Nb_question_in_training,number of questions in training,number,integer,50,no,
+interval_btw_last_feedback_and_posttest_controlled,whether the interwal between the last feedback in the training and the posttest is controlled between two feedback timing conditons,string,yes or no,yes,no,
+measure_of_outcome,outcome measure type,string,"Posttest_performance, Number of trials needed, Response time",Posttest_performance,no,
+memory_retrieval_vs_knowledge_application,posttest category general,,,,,
+posttest_category,,,"Recall (Free Recall): Assessing the ability to retrieve information without cues.
+Recall (Cued Recall): Assessing the ability to retrieve information with the aid of cues.
+Recall (Reversed Cued): Likely involves recalling information when presented with cues in a reversed or altered manner compared to the learning phase.
+Recognition: Identifying previously learned information from a set of options.
+Comprehension: Understanding and interpreting information, possibly involving inferential reasoning.
+Application: Applying learned knowledge or skills to new or different situations.
+Mixed: Any post-test that includes a combination of the above tasks, or tasks that don't neatly fit into one category.",,,
+type_posttest,type of posttest,string,"MCQ, Single word, Short open answer, Longer answers",MCQ,no,
+Item_posttest,posttest item type,string,"Different_from_training, Identical_to_training, Mixed",Identical_to_training,no,
+feedback_provider,who provided feedback,string,"Teacher, Technology, Peer",Teacher,no,
+system_adaptivity,adaptivity of system,string,"Adaptive_item_presentation, Adaptive_feedback, Non_adaptive",Non_adaptive,no,
+data_link,link to dataset,string,URL,http://data-link.com,no,
+Preregistered,preregistration status,string,yes or no,yes,no,
+n_excluded,number of participants excluded,number,integer,2,no,
+nb_measurement_points,number of measurement points ,number,integer,1: if there is only posttest and 2 if there is pre and posttest,no,
+time_limit_for_answer,time limit for answers if applied,string,text,30 seconds,no,
+time_limit_for_answer_not_indicated_explicitly,if time limit for answer info is not reported explicitly but could be inferred from the study design,,,,,
+extra_group_exist,is there an extra group in terms of timing (or a control),,,,,
+n_posttest_in_exp,number of posttest in the experiment,,,,,
+posttest_number,the posttest number the data extracted from,,,,,
+delayed_feedback_given_in,whether the delayed feedback is given in one go or separately after each item,,,,,
+retention_interval_difference_last_feedback_posttest_immediate_vs_delayed,especially for one go studies,,,,,
+B.2 Group-level [dark_green]: Properties coded separately for each group,,,,,,
+retention_interval_[condition],"For each condition, the interval(day) between the end of training and the posttest is recorded in hours, with the training considered to end at the last response.",number,integer,48,no,In hours
+feedback_provided_[condition],feedback dependent on error,string,yes or no,yes,no,
+nb_times_feedback_provided_[condition],how many times during the training the feedback is provided,,,,,NA if the feedback only given for errors
+feedback_remind_answer_[condition],whether the initial answer of the participants are reminded during the feedback presentation,,,,,
+C. Required for Effect Size [red],,,,,,
+N_total,total number of participants,numeric,integer,,yes,this is the already excluded version
+n_extra_group_if_any,,,,,,
+n_i,"Number of participants in the immediate feedback condition for between-subjects designs; for within-subjects designs, enter the total number of participants exposed to both conditions.",numeric,integer,30,yes,
+n_d,"Number of participants in the delayed feedback condition for between-subjects designs; for within-subjects designs, enter the total number of participants exposed to both conditions.",numeric,integer,30,yes,
+mean_i,Mean of the dependent variable for the immediate feedback condition.,numeric,float,3.5,Required for effect size calculation.,
+mean_d,Mean of the dependent variable for the delayed feedback condition.,numeric,float,2.8,Required for effect size calculation.,
+sd_i,Standard deviation of the dependent variable for the immediate feedback condition.,numeric,float,0.5,"At least one of the following measurements is necessary for calculating effect size: mean and standard deviation (SD) or standard error (SE), t-statistic, or F-statistic. Ensure to provide data for the measure most relevant and available for robust effect size estimation.",
+sd_d,Standard deviation of the dependent variable for the delayed feedback condition.,numeric,float,0.1,,
+se_i,Standard error of the dependent variable for the immediate feedback condition.,numeric,float,0.02,,
+se_d,Standard error of the dependent variable for the delayed feedback condition.,numeric,float,0.02,,
+lower_CI,Lower confidence interval.,numeric,float,1.96,,
+upper_CI,Upper confidence interval.,numeric,float,,,
+t,t from the comparison of the two conditions.,numeric,float,"1: for change, 0: for no change",,
+SEM,Standard Error of the Mean (SEM) for t statistics indicates the precision of the sample mean estimate relative to the true population mean.	,numeric,float,,,
+F,"F-statistic from an ANOVA test, used to determine whether there are any statistically significant differences between the means of three or more independent groups.",numeric,float,5.4,,
+cohens_f,Measure of effect size used especially in the context of ANOVA,numeric,float,0.3,,This should be calculated when you have ANOVA results available. It provides a sense of the standardized difference between groups.
+se_f,Standard Error of Cohen's f.,numeric,float,0.05,,"Calculate this if Cohen's f is used, typically derived from the variance estimates used in the ANOVA"
+F_sign_change,A field to note any changes in the sign of F-statistic due to transformations of the direction.,numeric,integer,,,
+df,"Degrees of freedom associated with the statistical test, often reflecting the number of values in the final calculation that are free to vary.",numeric,integer,48,,
+p,p-value,numeric,float,0.04,,
+eta_square,"Eta squared, a measure of effect size in ANOVA, indicating the proportion of the total variance that is attributable to an effect.",numeric,float,0.2,,
+partial_eta_square,"Partial eta squared, similar to eta squared but accounts only for variance explained by one specific factor, controlling for other factors in the model.",numeric,float,0.1,,
+odd_ratio,odd_ratio,numeric,float,2.5,,
+logg_odd,"Log of odds ratio, transforming the odds ratio to a linear scale",numeric,float,0.92,,
+SE_logg_odd,Standard error of the log odds ratio,numeric,float,0.1,,
+corr,"Correlation coefficient if within designs, representing the strength and direction of a linear relationship between two variables.",numeric,float,0.6,,Assume r = 0.5 if not reported; crucial for calculating within-subject effect sizes.
+power,statistical power,numeric,float,0.8,,
+beta,Beta coefficient in regression analysis,numeric,float,0.5,,
+SE_beta,Standard error of the beta coefficient,numeric,float,0.05,,
+n_point,The number of data points or observations used in the calculation of a particular statistic.,numeric,integer,100,,Particularly useful in regression analyses or where sample size may affect the reliability of the statistic.
+effect_size_original,if the effect size is already reported in the paper,,,,,
+SE_original,if the se is already reported in the paper,,,,,
+effect_size_calculated,"Calculate the effect size (Cohen's d) based on the study's participant design (between vs within) and available data (mean, SD, SE, F, T). Use the appropriate calculator for between designs or assume r=0.5 for within designs if correlation is not reported.:
+
+",numeric,float,,yes,"Always calculate the effect size in the direction of immediate vs delayed feedback. 
+
+Relevant calculators:
+
+https://www.campbellcollaboration.org/calculator/d-oneway-2-equal
+
+For within-participant designs : https://camel.psyc.vt.edu/models/stats/effect_size.shtml
+
+For effect size convertor: https://www.escal.site/
+
+or check effect_size_guide.pdf"
+se_effect_size_calcualted,standard error (SE) of the effect size using the same data and calculators as the effect size. This helps quantify the precision of the effect size estimate. ,numeric,float,,no,"If available, include the SE to provide insight into the reliability of the effect size. Use the same online resources as for effect size calculation."
+Effect_size_formula_to_be_used,"Describes the formula to be used for effect size calculation, based on design and available data.",string,,"between_with_mean_sd
+that means its between participant design that I know the mean and sd of the groups in comparison",yes,
+decision_justification,important decisions taken during the extraction are justified here,,,,no,
+Double Coder Extractions,,,,,,
+Double_coder,first letters of first and last names of the secondary coder,,,,yes,
+effect_size_double_coder,effect size calculated by the secondary coder,,,,yes,
+se_effect_size_double_coder,SE calculated by the secondary coder,,,,yes,
+"Quality Assesment (Kmet et al. , 2004)",,,,,yes,
+Method of subject/comparison group selection or source of information/input variables described and appropriate? ,,,"yes, partial, no, NA",,yes,
+"Subject (and comparison group, if applicable) characteristics sufficiently described?",,,"yes, partial, no, NA",,yes,
+"If interventional and random allocation was possible, was it described?",,,"yes, partial, no, NA",,yes,
+"If interventional and blinding of investigators was possible, was it reported?",,,"yes, partial, no, NA",,yes,
+"If interventional and blinding of subjects was possible, was it reported?",,,"yes, partial, no, NA",,yes,
+Outcome and (if applicable) exposure measure(s) well defined and robust to measurement/misclassification bias? Means of assessment reported?,,,"yes, partial, no, NA",,yes,
+Sample size appropriate?,,,"yes, partial, no, NA",,yes,
+Analytic methods described/justified and appropriate?,,,"yes, partial, no, NA",,yes,
+Some estimate of variance is reported for the main results?,,,"yes, partial, no, NA",,yes,
+Controlled for confounding?,,,"yes, partial, no, NA",,yes,
+Results reported in sufficient detail?,,,"yes, partial, no, NA",,yes,
+Conclusions supported by the results?,,,"yes, partial, no, NA",,yes,
