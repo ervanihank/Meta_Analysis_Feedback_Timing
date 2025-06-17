@@ -107,6 +107,8 @@ posttest_number,the posttest number the data extracted from,,,,,
 delayed_feedback_given_in,whether the delayed feedback is given in one go or separately after each item,,,,,
 retention_interval_difference_last_feedback_posttest_immediate_vs_delayed,especially for one go studies,,,,,
 B.2 Group-level [dark_green]: Properties coded separately for each group,,,,,,
+delay_[condition](seconds/item),"The delay between the participant’s response and when feedback is given, in seconds or items",number,"If 'delay_definition' is time, the amount is specified in seconds (e.g., 10 seconds).
+If 'delay_definition' is item, the amount is specified in number of items (e.g., 3 items).",0; 5; 3; 20,Yes (per condition),Unit depends on delay_definition
 retention_interval_[condition],"For each condition, the interval(day) between the end of training and the posttest is recorded in hours, with the training considered to end at the last response.",number,integer,48,no,In hours
 feedback_provided_[condition],feedback dependent on error,string,yes or no,yes,no,
 nb_times_feedback_provided_[condition],how many times during the training the feedback is provided,,,,,NA if the feedback only given for errors
