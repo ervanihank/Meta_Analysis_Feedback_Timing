@@ -1,6 +1,6 @@
 ---
 title: "2-data_cleaning_and_descriptive"
-author: "Erva"
+author: ""
 date: "2024-12-11"
 output: html_document
 ---
@@ -153,7 +153,7 @@ numeric_columns <- c('year', 'expt_num', 'feedback_delay_difference', 'mean_age'
 'partial_eta_square', 'odd_ratio', 'log_odd', 'SE_log_odd', 'corr', 'power', 'beta',
 'SE_beta', 'n_point', 'effect_size_original', 'SE_original', 'effect_size_by_calculator', 
 'se_by_calculator', 'effect_size', 'standard_error', 'effect_size_alternative', 
-'standard_error_alternative', 'n', 'hedges_g', 'se_g','retention_interval_difference_last_feedback_posttest_immediate_vs_delayed', 'feedback_delay_difference_converted_to_time.sec.')
+'standard_error_alternative', 'n', 'hedges_g', 'se_g','retention_interval_difference_last_feedback_posttest_immediate_vs_delayed', 'feedback_delay_difference_converted_to_time.sec.','delay_i.seconds.item.','delay_d.seconds.item.')
 
 # Convert columns to numeric, safely and checking for existence
 ma_feedback_time_data[numeric_columns] <- lapply(numeric_columns, function(col) {
@@ -292,7 +292,7 @@ ma_feedback_time_data <- ma_feedback_time_data %>%
 
 # 8- Create and save the analysis data frame
 necessary_columns <- c('unique_ID', 'g_ID', 'unique_sample_ID','expt_num', 'effect_size', 'standard_error', 'n', 'hedges_g', 'se_g', 'vi_g')
-moderator_columns <- c('country_data_collected_from','publication_type','mean_age', 'gender','feedback_type', 'feedback_type_mixed_grouped', 'delay_definition','feedback_delay_difference','educational_level','learning_domain', 
+moderator_columns <- c('country_data_collected_from','publication_type','mean_age', 'gender','feedback_type', 'feedback_type_mixed_grouped', 'delay_definition','feedback_delay_difference','delay_i.seconds.item.','delay_d.seconds.item.','educational_level','learning_domain', 
                     'task_level', 'experimental_vs_curriculum_based_task','participant_design', 'arbitrary_learning','item_posttest', 
                     'delayed_feedback_given_in', 'retention_interval', 'feedback_provided', 'feedback_remind_answer', 'nb_question.item_in_training', 
                     'posttest_category', 'learning_material_type_in_training','memory_retrieval_vs_knowledge_application', 
@@ -342,6 +342,7 @@ ma_feedback_time_data_analysis <- ma_feedback_time_data_analysis %>%
 
 ma_feedback_time_data_analysis <- ma_feedback_time_data_analysis %>%
   mutate(memory_retrieval_vs_knowledge_application = recode(memory_retrieval_vs_knowledge_application, "mixed" = "knowledge_application"))
+
 
 
 
@@ -553,7 +554,6 @@ effects_map_plot
 ggsave("effects_map_plot.png", plot = effects_map_plot, width = 10, height = 8, dpi = 300)
 
 ```
-
 
 ## 2.2- Distributions
 
@@ -906,6 +906,82 @@ ggsave("outliers_check_histogram_plot.png", plot = outliers_check_histogram_plot
 data_clean <- ma_feedback_time_data_analysis[!ma_feedback_time_data_analysis$outlier_prereg,]
 
 ```
+#### outliers plot with direction
+
+```{r}
+# Calculate the mean and standard deviation of Hedges' g
+mean_hedges_g <- mean(ma_feedback_time_data_analysis$hedges_g, na.rm = TRUE)
+sd_hedges_g <- sd(ma_feedback_time_data_analysis$hedges_g, na.rm = TRUE)
+
+# Define the cutoff for outliers (more than 3 standard deviations from the mean)
+lower_bound <- mean_hedges_g - 3 * sd_hedges_g
+upper_bound <- mean_hedges_g + 3 * sd_hedges_g
+
+# Identify outliers
+ma_feedback_time_data_analysis$outlier_prereg <- with(ma_feedback_time_data_analysis, hedges_g < lower_bound | hedges_g > upper_bound)
+
+# Output the studies flagged as outliers
+outliers <- ma_feedback_time_data_analysis[ma_feedback_time_data_analysis$outlier_prereg,]
+print(outliers)
+
+# Get min value for positioning labels
+min_y <- 0
+
+# Create the histogram
+outliers_check_histogram_plot.png <- ggplot(ma_feedback_time_data_analysis, aes(x = hedges_g, fill = as.factor(outlier_prereg))) +
+  geom_histogram(binwidth = 0.1, color = "black", alpha = 0.7) +
+  geom_vline(xintercept = mean_hedges_g, linetype = "dashed", color = "black", size = 1, label = "Mean") +
+  geom_vline(xintercept = lower_bound, linetype = "dotted", color = "#D55E00", size = 1, label = "-3 SD") +
+  geom_vline(xintercept = upper_bound, linetype = "dotted", color = "#D55E00", size = 1, label = "+3 SD") +
+  scale_fill_manual(values = c("FALSE" = "#0072B2", "TRUE" = "#CC79A7"),
+                    name = "", 
+                    labels = c("FALSE" = "Non-Outlier", "TRUE" = "Outlier")) +
+  labs(title = "",
+       subtitle = paste0("Mean: ", round(mean_hedges_g, 3), ", SD: ", round(sd_hedges_g, 3)),
+       x = "Hedges' g", 
+       y = "Frequency") +
+  # Add arrows pointing outward from center
+  geom_segment(aes(x = 0, y = min_y - 0.5, 
+                   xend = max(ma_feedback_time_data_analysis$hedges_g, na.rm = TRUE), 
+                   yend = min_y - 0.5), 
+               arrow = arrow(length = unit(0.2, "cm")), color = "#893F45") +
+  geom_segment(aes(x = 0, y = min_y - 0.5, 
+                   xend = min(ma_feedback_time_data_analysis$hedges_g, na.rm = TRUE), 
+                   yend = min_y - 0.5), 
+               arrow = arrow(length = unit(0.2, "cm")), color = "#893F45") +
+  # Add text labels below the arrows
+  annotate("text", x = max(ma_feedback_time_data_analysis$hedges_g, na.rm = TRUE) / 2, 
+           y = min_y - 1.5, 
+           label = "Favours immediate feedback", hjust = 0.5, color = "#893F45", size = 6) +
+  annotate("text", x = min(ma_feedback_time_data_analysis$hedges_g, na.rm = TRUE) / 2, 
+           y = min_y - 1.5, 
+           label = "Favours delayed feedback", hjust = 0.5, color = "#893F45", size = 6) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold", size = 16, color = "black"),
+    plot.subtitle = element_text(face = "plain", size = 14, color = "grey70"),
+    legend.title = element_text(face = "bold", color = "black"),
+    legend.text = element_text(size = 12),
+    axis.title = element_text(face = "bold", size = 14, color = "black"),
+    axis.text = element_text(color = "black"),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    legend.position = "bottom",
+    legend.background = element_rect(fill = "white", color = NA),
+    legend.box.background = element_rect(color = "grey80"),
+    legend.box.margin = margin(5, 5, 5, 5)
+  ) +
+  plot_theme
+
+# Print the histogram plot
+print(outliers_check_histogram_plot.png)
+
+# Save the plot as an image
+ggsave("fig_outliers_check_histogram_plot.png", plot = outliers_check_histogram_plot.png, width = 10, height = 8, dpi = 300)
+
+# Remove outliers from the data for further analysis
+data_clean <- ma_feedback_time_data_analysis[!ma_feedback_time_data_analysis$outlier_prereg,]
+```
 
 ## 4.b- Re-pooling effect sizes without outliers
 
@@ -1028,9 +1104,1663 @@ tryCatch({
 # Print the LaTeX table
 cat(latex_table)
 ```
+## 4.c Influence Anlaysis (Leave one out)
 
-# 5- Forest Plot
+```{r}
+library(robumeta)
+library(dplyr)
+library(tibble)
 
+# Get unique study IDs
+unique_studies <- unique(data_clean$unique_ID)
+
+# Function to run meta-analysis excluding one study
+run_loo_analysis <- function(excluded_study, data, rho_value) {
+  # Filter out the excluded study
+  data_loo <- data %>% filter(unique_ID != excluded_study)
+  
+  # Run meta-analysis
+  model <- robu(formula = hedges_g ~ 1, 
+                data = data_loo,
+                studynum = unique_ID, 
+                var.eff.size = vi_g,
+                rho = rho_value,  
+                modelweights = "CORR", 
+                small = FALSE)
+  
+  # Extract key statistics
+  results <- tibble(
+    excluded_study = excluded_study,
+    estimate = model$reg_table$b.r,
+    se = model$reg_table$SE,
+    ci_lower = model$reg_table$CI.L,
+    ci_upper = model$reg_table$CI.U,
+    p_value = model$reg_table$prob,
+    tau_squared = model$mod_info$tau.sq,
+    I_squared = model$mod_info$I.2,
+    n_studies = model$N,
+    n_effects = model$M
+  )
+  
+  return(results)
+}
+
+# Run leave-one-out analysis for all studies
+influence_results <- map_df(unique_studies, 
+                            ~run_loo_analysis(.x, data_clean, rho = rho))
+
+# View results
+print(influence_results, n = Inf)
+
+# Optional: Calculate change from original model
+original_estimate <- g_feedback_time_corr_without_outliers$reg_table$b.r
+
+influence_results <- influence_results %>%
+  mutate(
+    estimate_change = estimate - original_estimate,
+    percent_change = ((estimate - original_estimate) / original_estimate) * 100
+  )
+
+# Identify most influential studies (largest absolute change)
+most_influential <- influence_results %>%
+  arrange(desc(abs(estimate_change))) %>%
+  select(excluded_study, estimate, estimate_change, percent_change, 
+         ci_lower, ci_upper, p_value, n_studies, n_effects)
+
+print(most_influential)
+
+# Optional: Save to CSV for appendix
+write.csv(influence_results, "influence_analysis_results.csv", row.names = FALSE)
+
+# Print min and max for manuscript text
+min_estimate <- min(influence_results$estimate)
+max_estimate <- max(influence_results$estimate)
+
+cat("\n=== FOR MANUSCRIPT ===\n")
+cat(sprintf("Min estimate: g = %.3f\n", min_estimate))
+cat(sprintf("Max estimate: g = %.3f\n", max_estimate))
+cat(sprintf("Original estimate: g = %.3f\n", original_estimate))
+cat(sprintf("\nRange of estimates: g = %.3f to g = %.3f\n", min_estimate, max_estimate))
+cat("\nCopy this for your manuscript:\n")
+cat(sprintf("The leave-one-study-out influence analysis showed that the overall effect estimate ranged from g = %.3f to g = %.3f when individual studies were sequentially removed, indicating robust findings not driven by any single study; see Appendix~\\ref{secA8} for detailed results.\n", min_estimate, max_estimate))
+
+# Create publication-ready table
+influence_table <- influence_results %>%
+  mutate(
+    `Effect Size` = sprintf("%.3f", estimate),
+    `95% CI` = sprintf("[%.3f, %.3f]", ci_lower, ci_upper),
+    `p` = ifelse(p_value < .001, "< .001", sprintf("%.3f", p_value)),
+    `Δg` = sprintf("%+.3f", estimate_change)
+  ) %>%
+  select(`Excluded Study` = excluded_study, 
+         k = n_studies,
+         `Effect Size`,
+         `95% CI`,
+         `p`,
+         `Δg`)
+
+print(influence_table, n = Inf)
+
+# Save for manuscript
+write.csv(influence_table, "table_influence_analysis.csv", row.names = FALSE)
+
+# Summary table for most influential studies (for appendix)
+influential_summary <- influence_results %>%
+  arrange(desc(abs(estimate_change))) %>%
+  mutate(
+    estimate = round(estimate, 3),
+    ci_lower = round(ci_lower, 3),
+    ci_upper = round(ci_upper, 3),
+    estimate_change = round(estimate_change, 3),
+    percent_change = round(percent_change, 2),
+    p_value = round(p_value, 3),
+    CI_95 = paste0("[", ci_lower, ", ", ci_upper, "]")
+  ) %>%
+  select(excluded_study, estimate, CI_95, estimate_change, 
+         percent_change, p_value, n_studies, n_effects)
+
+print(influential_summary)
+
+# Save summary table
+write.csv(influential_summary, "influence_analysis_summary.csv", row.names = FALSE)
+
+# Prepare data with significance indicator
+influence_plot_data <- influence_results %>%
+  mutate(
+    significant = ifelse(p_value < 0.05, "Significant (p < .05)", "Non-significant (p ≥ .05)"),
+    significant = factor(significant, levels = c("Significant (p < .05)", "Non-significant (p ≥ .05)"))
+  )
+
+# Create influence plot matching correlation plot style
+influence_plot_range <- ggplot(influence_plot_data, 
+                               aes(y = reorder(excluded_study, estimate), 
+                                   x = estimate, 
+                                   color = significant)) +
+  geom_vline(xintercept = original_estimate, 
+             linetype = "dashed", 
+             color = "black", 
+             linewidth = 0.8) +
+  geom_point(size = 3, alpha = 0.8) +
+  scale_color_manual(values = c("Significant (p < .05)" = "#D55E00", 
+                                 "Non-significant (p ≥ .05)" = "#5A75AA"),
+                     labels = c("Significant (p < .05)" = expression(paste("Significant (", italic(p), " < .05)")),
+                                "Non-significant (p ≥ .05)" = expression(paste("Non-significant (", italic(p), " ≥ .05)"))),
+                     name = "") +
+  scale_y_discrete(expand = expansion(add = 0.8)) +  # Add space between studies
+  labs(y = "", 
+       x = "Effect Size (Hedges' g)") +
+  plot_theme +
+  theme(
+    legend.position = "bottom",
+    legend.direction = "horizontal",
+    legend.title = element_text(size = 10),
+    legend.text = element_text(size = 10),
+    axis.title = element_text(size = 12, face = "bold"),
+    axis.text.y = element_text(size = 10),
+    axis.text.x = element_text(size = 10)
+  )
+print(influence_plot_range)
+ggsave("fig_influence_analysis.png", 
+       plot = influence_plot_range, 
+       width = 6,    
+       height = 9,   # Made plot longer for more spacing
+       dpi = 300, 
+       bg = "white")
+```
+
+## 4.d Sensitivity Analysis
+```{r}
+# SENSITIVITY ANALYSIS: Excluding short delays
+# Time delays < 1 minute OR item delays < 5 items
+
+# First, let's examine the delay structure
+cat("\n=== Original Data Summary ===\n")
+cat("Total effects:", nrow(data_clean), "\n")
+cat("Delay definitions:\n")
+print(table(data_clean$delay_definition, useNA = "ifany"))
+
+# Create a filtering criterion based on delay type
+data_clean <- data_clean %>%
+  mutate(
+    # Identify effects to EXCLUDE (short delays)
+    exclude_short_delay = case_when(
+      delay_definition == "seconds" & delay_d.seconds.item. < 60 ~ TRUE,
+      delay_definition == "item" & delay_d.seconds.item. < 5 ~ TRUE,
+      TRUE ~ FALSE
+    )
+  )
+
+# Summary of exclusions
+cat("\n=== Exclusion Summary ===\n")
+cat("Effects with second-based delays < 1 minute:", 
+    sum(data_clean$delay_definition == "seconds" & data_clean$delay_d.seconds.item. < 60, na.rm = TRUE), "\n")
+cat("Effects with item-based delays < 5 items:", 
+    sum(data_clean$delay_definition == "item" & data_clean$delay_d.seconds.item. < 5, na.rm = TRUE), "\n")
+cat("Total effects to exclude:", sum(data_clean$exclude_short_delay, na.rm = TRUE), "\n")
+
+
+
+cat("\n\n=== DETAILED LIST OF EXCLUDED EFFECTS ===\n\n")
+
+# Get excluded effects
+excluded_effects <- data_clean %>%
+  filter(exclude_short_delay == TRUE) %>%
+  select(unique_ID, g_ID, delay_definition, delay_d.seconds.item., hedges_g) %>%
+  arrange(delay_definition, delay_d.seconds.item., unique_ID)
+
+# Print excluded effects with second-based delays
+cat("--- SECOND-BASED DELAYS (< 60 seconds) ---\n")
+excluded_seconds <- excluded_effects %>%
+  filter(delay_definition == "seconds")
+
+if (nrow(excluded_seconds) > 0) {
+  cat(sprintf("Total excluded: %d effects from %d unique studies\n\n", 
+              nrow(excluded_seconds), 
+              length(unique(excluded_seconds$unique_ID))))
+  
+  for (i in 1:nrow(excluded_seconds)) {
+    cat(sprintf("%3d. Study: %-25s Effect ID: %-10s Delay: %6.2f seconds  Hedges' g: %6.3f\n",
+                i,
+                excluded_seconds$unique_ID[i],
+                excluded_seconds$g_ID[i],
+                excluded_seconds$delay_d.seconds.item.[i],
+                excluded_seconds$hedges_g[i]))
+  }
+  
+  # Summary by study
+  cat("\n--- Summary by Study (Second-based) ---\n")
+  study_summary_seconds <- excluded_seconds %>%
+    group_by(unique_ID) %>%
+    summarise(
+      n_effects = n(),
+      min_delay = min(delay_d.seconds.item.),
+      max_delay = max(delay_d.seconds.item.),
+      mean_delay = mean(delay_d.seconds.item.)
+    ) %>%
+    arrange(mean_delay)
+  
+  print(study_summary_seconds, n = Inf)
+} else {
+  cat("No effects excluded based on second-based delays < 60 seconds\n")
+}
+
+cat("\n\n--- ITEM-BASED DELAYS (< 5 items) ---\n")
+excluded_items <- excluded_effects %>%
+  filter(delay_definition == "item")
+
+if (nrow(excluded_items) > 0) {
+  cat(sprintf("Total excluded: %d effects from %d unique studies\n\n", 
+              nrow(excluded_items), 
+              length(unique(excluded_items$unique_ID))))
+  
+  for (i in 1:nrow(excluded_items)) {
+    cat(sprintf("%3d. Study: %-25s Effect ID: %-10s Delay: %6.0f items     Hedges' g: %6.3f\n",
+                i,
+                excluded_items$unique_ID[i],
+                excluded_items$g_ID[i],
+                excluded_items$delay_d.seconds.item.[i],
+                excluded_items$hedges_g[i]))
+  }
+  
+  # Summary by study
+  cat("\n--- Summary by Study (Item-based) ---\n")
+  study_summary_items <- excluded_items %>%
+    group_by(unique_ID) %>%
+    summarise(
+      n_effects = n(),
+      min_delay = min(delay_d.seconds.item.),
+      max_delay = max(delay_d.seconds.item.),
+      mean_delay = mean(delay_d.seconds.item.)
+    ) %>%
+    arrange(mean_delay)
+  
+  print(study_summary_items, n = Inf)
+} else {
+  cat("No effects excluded based on item-based delays < 5 items\n")
+}
+
+# Overall summary
+cat("\n\n--- OVERALL EXCLUSION SUMMARY ---\n")
+cat(sprintf("Total unique studies excluded: %d\n", length(unique(excluded_effects$unique_ID))))
+cat(sprintf("Total effects excluded: %d\n", nrow(excluded_effects)))
+cat(sprintf("  - Second-based (< 60 sec): %d effects\n", sum(excluded_effects$delay_definition == "seconds")))
+cat(sprintf("  - Item-based (< 5 items): %d effects\n", sum(excluded_effects$delay_definition == "item")))
+
+# Create filtered dataset for sensitivity analysis
+data_sensitivity <- data_clean %>%
+  filter(!exclude_short_delay)
+
+cat("\n=== Sensitivity Analysis Dataset ===\n")
+cat("Effects remaining:", nrow(data_sensitivity), "\n")
+cat("Effects excluded:", nrow(data_clean) - nrow(data_sensitivity), "\n")
+cat("Unique studies remaining:", length(unique(data_sensitivity$unique_ID)), "\n")
+cat("Delay definitions in sensitivity dataset:\n")
+print(table(data_sensitivity$delay_definition, useNA = "ifany"))
+
+
+# RUN SENSITIVITY ANALYSIS MODEL
+
+g_feedback_sensitivity <- robu(
+  formula = hedges_g ~ 1, 
+  data = data_sensitivity,
+  studynum = unique_ID, 
+  var.eff.size = vi_g,
+  rho = rho,  
+  modelweights = "CORR", 
+  small = FALSE
+)
+
+# Print results
+cat("\n=== SENSITIVITY ANALYSIS RESULTS ===\n")
+cat("(Excluding time delays < 1 min and item delays < 5 items)\n\n")
+print(g_feedback_sensitivity)
+
+# Sensitivity analysis for different rho values
+sensitivity_table_sens <- sensitivity(g_feedback_sensitivity)
+
+# Generate the LaTeX table for sensitivity analysis
+latex_table_sensitivity_sens <- kable(
+  sensitivity_table_sens, 
+  format = "latex", 
+  booktabs = TRUE, 
+  align = "lcccccc"
+) %>%
+  kable_styling(latex_options = c("hold_position")) %>%
+  add_header_above(c(" " = 1, "Sensitivity Analysis (Excluding Short Delays)" = 6))
+
+# Write to file
+tex_filename_sens <- normalizePath(
+  file.path(file_path, "sensitivity_rve_no_short_delays.tex"), 
+  mustWork = FALSE
+)
+tryCatch({
+  cat(latex_table_sensitivity_sens, file = tex_filename_sens)
+  if (file.exists(tex_filename_sens)) {
+    message("File successfully created: ", tex_filename_sens)
+  } else {
+    warning("Failed to create file: ", tex_filename_sens)
+  }
+}, error = function(e) {
+  warning("An error occurred while writing file: ", e$message)
+})
+
+cat(latex_table_sensitivity_sens)
+
+# CREATE RESULTS TABLE FOR SENSITIVITY ANALYSIS
+
+# Extract reg_table
+reg_table_sens <- g_feedback_sensitivity$reg_table
+
+# Number of effect sizes
+k_sens <- nrow(g_feedback_sensitivity$data.full)
+
+# Number of unique studies
+n_studies_sens <- length(unique(g_feedback_sensitivity$data.full$unique_ID))
+
+# Create results table
+results_table_sens <- tibble(
+  Statistic = c(
+    "Immediate vs. delayed feedback (excluding short delays)", 
+    "Num. Obs.", "N", "rho", "I^2", "tau^2"
+  ),
+  Estimate = c(
+    as.character(round(reg_table_sens$b.r, 2)),
+    as.character(k_sens),
+    as.character(n_studies_sens),
+    as.character(g_feedback_sensitivity$mod_info$rho),
+    as.character(format(g_feedback_sensitivity$mod_info$I.2, digits = 2)),
+    as.character(format(g_feedback_sensitivity$mod_info$tau.sq, digits = 4))
+  ),
+  `Std. Error` = c(
+    as.character(round(reg_table_sens$SE, 2)),
+    "", "", "", "", ""
+  ),
+  `t Statistic` = c(
+    as.character(round(reg_table_sens$t, 2)),
+    "", "", "", "", ""
+  ),
+  `P value` = c(
+    format.pval(reg_table_sens$prob, digits = 3, eps = 0.001, na.form = "<.001"),
+    "", "", "", "", ""
+  ),
+  `95% CI` = c(
+    paste0("[", round(reg_table_sens$CI.L, 2), ", ", 
+           round(reg_table_sens$CI.U, 2), "]"),
+    "", "", "", "", ""
+  ),
+  `Sig` = c(
+    reg_table_sens$sig,
+    "", "", "", "", ""
+  )
+)
+
+# Create LaTeX table
+latex_table_sens <- results_table_sens %>%
+  kbl(
+    format = "latex",
+    booktabs = TRUE,
+    align = "lllllll",
+    col.names = c("Statistic", "Estimate", "Std. Error", "t Statistic", 
+                  "P value", "95% CI", "Sig")
+  ) %>%
+  kable_styling(
+    latex_options = c("hold_position"),
+    full_width = FALSE
+  ) %>%
+  add_header_above(c(" " = 1, "Robust Variance Estimates Model (Sensitivity)" = 6)) %>%
+  row_spec(0, extra_latex_after = "\\midrule")
+
+# Write to file
+tex_filename_model_sens <- normalizePath(
+  file.path(file_path, "model_sensitivity_no_short_delays.tex"), 
+  mustWork = FALSE
+)
+tryCatch({
+  cat(latex_table_sens, file = tex_filename_model_sens)
+  if (file.exists(tex_filename_model_sens)) {
+    message("File successfully created: ", tex_filename_model_sens)
+  } else {
+    warning("Failed to create file: ", tex_filename_model_sens)
+  }
+}, error = function(e) {
+  warning("An error occurred while writing file: ", e$message)
+})
+
+cat(latex_table_sens)
+
+# COMPARISON SUMMARY
+
+cat("\n\n=== COMPARISON: Original vs. Sensitivity Analysis ===\n")
+comparison_df <- data.frame(
+  Model = c("Original (with all delays)", 
+            "Sensitivity (excluding short delays)"),
+  k = c(nrow(g_feedback_time_corr_without_outliers$data.full), k_sens),
+  N_studies = c(length(unique(g_feedback_time_corr_without_outliers$data.full$unique_ID)), 
+                n_studies_sens),
+  Estimate = c(round(g_feedback_time_corr_without_outliers$reg_table$b.r, 3),
+               round(reg_table_sens$b.r, 3)),
+  SE = c(round(g_feedback_time_corr_without_outliers$reg_table$SE, 3),
+         round(reg_table_sens$SE, 3)),
+  CI_Lower = c(round(g_feedback_time_corr_without_outliers$reg_table$CI.L, 3),
+               round(reg_table_sens$CI.L, 3)),
+  CI_Upper = c(round(g_feedback_time_corr_without_outliers$reg_table$CI.U, 3),
+               round(reg_table_sens$CI.U, 3)),
+  p_value = c(round(g_feedback_time_corr_without_outliers$reg_table$prob, 4),
+              round(reg_table_sens$prob, 4))
+)
+
+print(comparison_df)
+
+
+# SAVE EXCLUDED EFFECTS LIST TO CSV
+
+
+# Save detailed list to CSV for reference
+csv_filename <- normalizePath(
+  file.path(file_path, "excluded_effects_sensitivity.csv"), 
+  mustWork = FALSE
+)
+
+excluded_effects_full <- data_clean %>%
+  filter(exclude_short_delay == TRUE) %>%
+  select(unique_ID, g_ID, delay_definition, delay_d.seconds.item., 
+         hedges_g, se_g, sample_size, year) %>%
+  arrange(delay_definition, delay_d.seconds.item., unique_ID)
+
+write.csv(excluded_effects_full, csv_filename, row.names = FALSE)
+cat(sprintf("\n\nDetailed list of excluded effects saved to: %s\n", csv_filename))
+```
+
+```{r}
+# ANALYZE WHICH STUDIES REMAIN AFTER PARTIAL EXCLUSION
+
+cat("\n\n=== STUDY RETENTION ANALYSIS ===\n\n")
+
+# Get unique studies in original data
+studies_original <- unique(data_clean$unique_ID)
+
+# Get unique studies with excluded effects
+studies_with_exclusions <- unique(data_clean$unique_ID[data_clean$exclude_short_delay == TRUE])
+
+# Get unique studies remaining in sensitivity analysis
+studies_in_sensitivity <- unique(data_sensitivity$unique_ID)
+
+# Studies that were partially excluded (some effects removed, but study remains)
+studies_partially_excluded <- intersect(studies_with_exclusions, studies_in_sensitivity)
+
+# Studies that were completely excluded (all effects removed)
+studies_completely_excluded <- setdiff(studies_with_exclusions, studies_in_sensitivity)
+
+cat("--- SUMMARY ---\n")
+cat("Total unique studies in original data:", length(studies_original), "\n")
+cat("Studies with at least one excluded effect:", length(studies_with_exclusions), "\n")
+cat("Studies PARTIALLY excluded (some effects removed, study remains):", length(studies_partially_excluded), "\n")
+cat("Studies COMPLETELY excluded (all effects removed):", length(studies_completely_excluded), "\n")
+cat("Studies remaining in sensitivity analysis:", length(studies_in_sensitivity), "\n")
+
+# DETAILED VIEW: PARTIALLY EXCLUDED STUDIES
+
+if (length(studies_partially_excluded) > 0) {
+  cat("\n\n--- STUDIES PARTIALLY EXCLUDED (Study remains but lost some effects) ---\n\n")
+  
+  for (study in studies_partially_excluded) {
+    # Get all effects for this study
+    study_effects_original <- data_clean %>% 
+      filter(unique_ID == study)
+    
+    study_effects_excluded <- study_effects_original %>% 
+      filter(exclude_short_delay == TRUE)
+    
+    study_effects_retained <- study_effects_original %>% 
+      filter(exclude_short_delay == FALSE)
+    
+    cat(sprintf("\nStudy: %s\n", study))
+    cat(sprintf("  Total effects: %d\n", nrow(study_effects_original)))
+    cat(sprintf("  Effects excluded: %d\n", nrow(study_effects_excluded)))
+    cat(sprintf("  Effects retained: %d\n", nrow(study_effects_retained)))
+    cat(sprintf("  Delay definition: %s\n", unique(study_effects_original$delay_definition)[1]))
+    
+    cat("\n  Excluded effects:\n")
+    for (i in 1:nrow(study_effects_excluded)) {
+      cat(sprintf("    - %s: delay = %.2f %s, g = %.3f\n",
+                  study_effects_excluded$g_ID[i],
+                  study_effects_excluded$delay_d.seconds.item.[i],
+                  ifelse(study_effects_excluded$delay_definition[i] == "seconds", "seconds", "items"),
+                  study_effects_excluded$hedges_g[i]))
+    }
+    
+    cat("\n  Retained effects:\n")
+    for (i in 1:nrow(study_effects_retained)) {
+      cat(sprintf("    - %s: delay = %.2f %s, g = %.3f\n",
+                  study_effects_retained$g_ID[i],
+                  study_effects_retained$delay_d.seconds.item.[i],
+                  ifelse(study_effects_retained$delay_definition[i] == "seconds", "seconds", "items"),
+                  study_effects_retained$hedges_g[i]))
+    }
+  }
+}
+
+# DETAILED VIEW: COMPLETELY EXCLUDED STUDIES
+
+if (length(studies_completely_excluded) > 0) {
+  cat("\n\n--- STUDIES COMPLETELY EXCLUDED (All effects removed) ---\n\n")
+  
+  for (study in studies_completely_excluded) {
+    study_effects <- data_clean %>% 
+      filter(unique_ID == study)
+    
+    cat(sprintf("\nStudy: %s\n", study))
+    cat(sprintf("  Total effects (all excluded): %d\n", nrow(study_effects)))
+    cat(sprintf("  Delay definition: %s\n", unique(study_effects$delay_definition)[1]))
+    cat(sprintf("  Delay range: %.2f to %.2f %s\n",
+                min(study_effects$delay_d.seconds.item.),
+                max(study_effects$delay_d.seconds.item.),
+                ifelse(unique(study_effects$delay_definition)[1] == "seconds", "seconds", "items")))
+    
+    cat("\n  All excluded effects:\n")
+    for (i in 1:nrow(study_effects)) {
+      cat(sprintf("    - %s: delay = %.2f %s, g = %.3f\n",
+                  study_effects$g_ID[i],
+                  study_effects$delay_d.seconds.item.[i],
+                  ifelse(study_effects$delay_definition[i] == "seconds", "seconds", "items"),
+                  study_effects$hedges_g[i]))
+    }
+  }
+}
+
+
+# CREATE SUMMARY TABLE
+
+
+cat("\n\n--- SUMMARY TABLE BY STUDY ---\n")
+
+summary_by_study <- data_clean %>%
+  group_by(unique_ID) %>%
+  summarise(
+    total_effects = n(),
+    excluded_effects = sum(exclude_short_delay),
+    retained_effects = sum(!exclude_short_delay),
+    delay_definition = first(delay_definition),
+    min_delay = min(delay_d.seconds.item.),
+    max_delay = max(delay_d.seconds.item.),
+    status = case_when(
+      excluded_effects == 0 ~ "Fully retained",
+      retained_effects == 0 ~ "Completely excluded",
+      TRUE ~ "Partially excluded"
+    )
+  ) %>%
+  arrange(status, delay_definition, unique_ID)
+
+print(summary_by_study, n = Inf)
+
+
+# SAVE TO CSV
+
+
+csv_filename_summary <- normalizePath(
+  file.path(file_path, "study_exclusion_summary.csv"), 
+  mustWork = FALSE
+)
+
+write.csv(summary_by_study, csv_filename_summary, row.names = FALSE)
+cat(sprintf("\n\nStudy exclusion summary saved to: %s\n", csv_filename_summary))
+
+
+# QUICK REFERENCE LISTS
+
+
+cat("\n\n=== QUICK REFERENCE ===\n")
+
+cat("\nStudies PARTIALLY excluded (", length(studies_partially_excluded), " studies):\n", sep = "")
+cat(paste(studies_partially_excluded, collapse = ", "), "\n")
+
+cat("\nStudies COMPLETELY excluded (", length(studies_completely_excluded), " studies):\n", sep = "")
+if (length(studies_completely_excluded) > 0) {
+  cat(paste(studies_completely_excluded, collapse = ", "), "\n")
+} else {
+  cat("None\n")
+}
+```
+
+
+## 4.e. Categorical Meta Analysis
+
+```{r}
+
+# CATEGORICAL META-ANALYSIS: Short, Intermediate, and Long Delays
+
+
+# First, create the delay categories based on the table you provided
+data_clean <- data_clean %>%
+  mutate(
+    delay_category = case_when(
+      # Second-based delays
+      delay_definition == "seconds" & delay_d.seconds.item. < 3600 ~ "Short",  # < 1 hour (3600 seconds)
+      delay_definition == "seconds" & delay_d.seconds.item. >= 3600 & delay_d.seconds.item. <= 86400 ~ "Intermediate",  # 1 hour to 1 day (86400 seconds)
+      delay_definition == "seconds" & delay_d.seconds.item. > 86400 ~ "Long",  # > 1 day
+      
+      # Item-based delays
+      delay_definition == "item" & delay_d.seconds.item. <= 10 ~ "Short",  # 1-10 items
+      delay_definition == "item" & delay_d.seconds.item. > 10 & delay_d.seconds.item. <= 30 ~ "Intermediate",  # 11-30 items
+      delay_definition == "item" & delay_d.seconds.item. > 30 ~ "Long",  # > 30 items
+      
+      TRUE ~ NA_character_
+    )
+  )
+
+# Check the categorization
+cat("\n=== DELAY CATEGORIZATION ===\n")
+cat("\nOverall distribution:\n")
+print(table(data_clean$delay_category, useNA = "ifany"))
+
+cat("\nBy delay definition:\n")
+print(table(data_clean$delay_definition, data_clean$delay_category, useNA = "ifany"))
+
+# Summary statistics by category
+cat("\n\n--- Summary by Delay Category ---\n")
+category_summary <- data_clean %>%
+  group_by(delay_category, delay_definition) %>%
+  summarise(
+    n_effects = n(),
+    n_studies = n_distinct(unique_ID),
+    min_delay = min(delay_d.seconds.item.),
+    max_delay = max(delay_d.seconds.item.),
+    mean_delay = mean(delay_d.seconds.item.),
+    median_delay = median(delay_d.seconds.item.),
+    .groups = "drop"
+  ) %>%
+  arrange(delay_category, delay_definition)
+
+print(category_summary, n = Inf)
+
+
+# RUN CATEGORICAL META-ANALYSIS MODELS
+
+
+cat("\n\n=== CATEGORICAL META-ANALYSIS MODELS ===\n\n")
+
+# Model with delay_category as moderator
+g_feedback_categorical <- robu(
+  formula = hedges_g ~ 0 + delay_category,  # 0 removes intercept to get estimates for each category
+  data = data_clean,
+  studynum = unique_ID, 
+  var.eff.size = vi_g,
+  rho = rho,  
+  modelweights = "CORR", 
+  small = FALSE
+)
+
+cat("--- Categorical Model Results ---\n")
+print(g_feedback_categorical)
+
+# Extract results for each category
+reg_table_cat <- g_feedback_categorical$reg_table
+
+# Also run models for each category separately to get heterogeneity stats
+cat("\n\n--- Individual Category Models ---\n\n")
+
+categories <- c("Short", "Intermediate", "Long")
+category_results <- list()
+
+for (cat_name in categories) {
+  cat(sprintf("\n=== %s Delays ===\n", cat_name))
+  
+  data_cat <- data_clean %>% filter(delay_category == cat_name)
+  
+  if (nrow(data_cat) > 0) {
+    model_cat <- robu(
+      formula = hedges_g ~ 1,
+      data = data_cat,
+      studynum = unique_ID,
+      var.eff.size = vi_g,
+      rho = rho,
+      modelweights = "CORR",
+      small = FALSE
+    )
+    
+    print(model_cat)
+    
+    # Store results
+    category_results[[cat_name]] <- list(
+      model = model_cat,
+      n_effects = nrow(data_cat),
+      n_studies = length(unique(data_cat$unique_ID)),
+      estimate = model_cat$reg_table$b.r,
+      se = model_cat$reg_table$SE,
+      ci_lower = model_cat$reg_table$CI.L,
+      ci_upper = model_cat$reg_table$CI.U,
+      p_value = model_cat$reg_table$prob,
+      tau_sq = model_cat$mod_info$tau.sq,
+      I2 = model_cat$mod_info$I.2
+    )
+  } else {
+    cat("No data in this category\n")
+    category_results[[cat_name]] <- NULL
+  }
+}
+
+
+# CREATE RESULTS TABLE FOR CATEGORICAL ANALYSIS (INCLUDING OVERALL)
+
+
+cat("\n\n=== CREATING RESULTS TABLE ===\n")
+
+# Create comprehensive results table
+results_categorical <- tibble(
+  Category = character(),
+  k = integer(),
+  N = integer(),
+  Estimate = numeric(),
+  SE = numeric(),
+  CI_Lower = numeric(),
+  CI_Upper = numeric(),
+  p_value = numeric(),
+  tau_sq = numeric(),
+  I2 = numeric()
+)
+
+# Add individual category results
+for (cat_name in categories) {
+  if (!is.null(category_results[[cat_name]])) {
+    results_categorical <- results_categorical %>%
+      add_row(
+        Category = cat_name,
+        k = category_results[[cat_name]]$n_effects,
+        N = category_results[[cat_name]]$n_studies,
+        Estimate = category_results[[cat_name]]$estimate,
+        SE = category_results[[cat_name]]$se,
+        CI_Lower = category_results[[cat_name]]$ci_lower,
+        CI_Upper = category_results[[cat_name]]$ci_upper,
+        p_value = category_results[[cat_name]]$p_value,
+        tau_sq = category_results[[cat_name]]$tau_sq,
+        I2 = category_results[[cat_name]]$I2
+      )
+  }
+}
+
+# Add overall effect
+overall_counts <- data_clean %>%
+  summarise(
+    n_studies = n_distinct(unique_ID),
+    n_effects = n()
+  )
+
+results_categorical <- results_categorical %>%
+  add_row(
+    Category = "Overall",
+    k = overall_counts$n_effects,
+    N = overall_counts$n_studies,
+    Estimate = g_feedback_time_corr_without_outliers$reg_table$b.r,
+    SE = g_feedback_time_corr_without_outliers$reg_table$SE,
+    CI_Lower = g_feedback_time_corr_without_outliers$reg_table$CI.L,
+    CI_Upper = g_feedback_time_corr_without_outliers$reg_table$CI.U,
+    p_value = g_feedback_time_corr_without_outliers$reg_table$prob,
+    tau_sq = g_feedback_time_corr_without_outliers$mod_info$tau.sq,
+    I2 = g_feedback_time_corr_without_outliers$mod_info$I.2
+  )
+
+print(results_categorical)
+
+
+# CREATE LATEX TABLE FOR CATEGORICAL RESULTS (WITH OVERALL)
+
+
+# Format the results table for LaTeX
+results_categorical_formatted <- results_categorical %>%
+  mutate(
+    Estimate_fmt = sprintf("%.2f", Estimate),
+    SE_fmt = sprintf("%.2f", SE),
+    CI_fmt = sprintf("[%.2f, %.2f]", CI_Lower, CI_Upper),
+    p_fmt = format.pval(p_value, digits = 3, eps = 0.001),
+    tau_sq_fmt = sprintf("%.4f", tau_sq),
+    I2_fmt = sprintf("%.2f%%", I2)
+  ) %>%
+  select(Category, k, N, Estimate_fmt, SE_fmt, CI_fmt, p_fmt, tau_sq_fmt, I2_fmt)
+
+latex_table_categorical <- results_categorical_formatted %>%
+  kbl(
+    format = "latex",
+    booktabs = TRUE,
+    align = "lcccccccc",
+    col.names = c("Delay Category", "k", "N", "Estimate", "SE", "95% CI", "p", "$\\tau^2$", "$I^2$"),
+    escape = FALSE
+  ) %>%
+  kable_styling(
+    latex_options = c("hold_position"),
+    full_width = FALSE
+  ) %>%
+  add_header_above(c(" " = 1, "Sample" = 2, "Effect Size" = 4, "Heterogeneity" = 2)) %>%
+  # Add horizontal line before Overall row
+  row_spec(nrow(results_categorical_formatted) - 1, hline_after = TRUE) %>%
+  # Make Overall row bold
+  row_spec(nrow(results_categorical_formatted), bold = TRUE) %>%
+  footnote(
+    general = c(
+      "Short delays: seconds < 1 hour or items 1-10",
+      "Intermediate delays: seconds 1 hour-1 day or items 11-30", 
+      "Long delays: seconds > 1 day or items > 30",
+      sprintf("Overall model rho = %.2f", rho)
+    ),
+    general_title = "Note:",
+    footnote_as_chunk = TRUE,
+    escape = FALSE
+  )
+
+# Write to file
+tex_filename_categorical <- normalizePath(
+  file.path(file_path, "tab_categorical_meta_analysis.tex"), 
+  mustWork = FALSE
+)
+tryCatch({
+  cat(latex_table_categorical, file = tex_filename_categorical)
+  if (file.exists(tex_filename_categorical)) {
+    message("Categorical results table saved: ", tex_filename_categorical)
+  }
+}, error = function(e) {
+  warning("Error writing categorical table: ", e$message)
+})
+
+cat("\n")
+cat(latex_table_categorical)
+
+
+# PREPARE DATA FOR FOREST PLOT WITH SUBGROUPS
+
+
+cat("\n\n=== PREPARING FOREST PLOT DATA ===\n")
+
+# Prepare data for forest plot
+# We need effect sizes, variance, study labels, and categories
+forest_data <- data_clean %>%
+  mutate(
+    study_label = paste0(unique_ID, " (", g_ID, ")"),
+    delay_category = factor(delay_category, levels = c("Short", "Intermediate", "Long"))
+  ) %>%
+  arrange(delay_category, unique_ID, g_ID) %>%
+  select(study_label, unique_ID, g_ID, hedges_g, se_g, vi_g, delay_category, 
+         delay_definition, delay_d.seconds.item.)
+
+# Add pooled estimates for each subgroup
+pooled_estimates <- results_categorical %>%
+  filter(Category != "Overall") %>%  # Exclude overall for now
+  mutate(
+    study_label = paste0(Category, " delays (pooled)"),
+    unique_ID = paste0("POOLED_", Category),
+    g_ID = "pooled",
+    hedges_g = Estimate,
+    se_g = SE,
+    vi_g = SE^2,
+    delay_category = factor(Category, levels = c("Short", "Intermediate", "Long")),
+    delay_definition = NA_character_,
+    delay_d.seconds.item. = NA_real_,
+    is_pooled = TRUE
+  ) %>%
+  select(study_label, unique_ID, g_ID, hedges_g, se_g, vi_g, delay_category,
+         delay_definition, delay_d.seconds.item., is_pooled)
+
+# Add is_pooled flag to forest_data
+forest_data <- forest_data %>%
+  mutate(is_pooled = FALSE)
+
+# Combine individual studies with pooled estimates
+forest_data_combined <- bind_rows(forest_data, pooled_estimates) %>%
+  arrange(delay_category, !is_pooled, unique_ID)
+
+# Calculate overall pooled effect (from results_categorical)
+overall_pooled <- results_categorical %>%
+  filter(Category == "Overall") %>%
+  mutate(
+    study_label = "Overall effect",
+    unique_ID = "OVERALL",
+    g_ID = "overall",
+    hedges_g = Estimate,
+    se_g = SE,
+    vi_g = SE^2,
+    delay_category = NA,
+    delay_definition = NA_character_,
+    delay_d.seconds.item. = NA_real_,
+    is_pooled = TRUE
+  ) %>%
+  select(study_label, unique_ID, g_ID, hedges_g, se_g, vi_g, delay_category,
+         delay_definition, delay_d.seconds.item., is_pooled)
+
+forest_data_final <- bind_rows(forest_data_combined, overall_pooled)
+
+cat("Forest plot data prepared with", nrow(forest_data_final), "rows\n")
+cat("  Individual effects:", sum(!forest_data_final$is_pooled, na.rm = TRUE), "\n")
+cat("  Subgroup pooled estimates:", sum(forest_data_final$is_pooled & !is.na(forest_data_final$delay_category), na.rm = TRUE), "\n")
+cat("  Overall pooled estimate: 1\n")
+
+
+# CREATE FOREST PLOT WITH SUBGROUPS
+
+
+cat("\n\n=== CREATING FOREST PLOT ===\n")
+
+library(metafor)
+
+# Calculate confidence intervals
+forest_data_final <- forest_data_final %>%
+  mutate(
+    ci_lower = hedges_g - 1.96 * se_g,
+    ci_upper = hedges_g + 1.96 * se_g
+  )
+
+# Create the forest plot
+pdf(file.path(file_path, "forest_plot_categorical.pdf"), width = 12, height = max(8, nrow(forest_data_final) * 0.3))
+
+par(mar = c(5, 4, 4, 2))
+
+# Set up the plot area
+rows_total <- nrow(forest_data_final)
+row_positions <- rows_total:1
+
+# Determine which rows are subgroup headers and pooled estimates
+subgroup_rows <- which(!is.na(forest_data_final$delay_category) & forest_data_final$is_pooled)
+overall_row <- which(forest_data_final$unique_ID == "OVERALL")
+
+# Create forest plot using metafor
+forest(
+  x = forest_data_final$hedges_g,
+  vi = forest_data_final$vi_g,
+  slab = forest_data_final$study_label,
+  xlab = "Hedges' g",
+  mlab = "",
+  ilab = cbind(
+    ifelse(forest_data_final$is_pooled, "", 
+           sprintf("%.2f", forest_data_final$delay_d.seconds.item.))
+  ),
+  ilab.xpos = c(-1.5),
+  ilab.pos = 4,
+  cex = 0.75,
+  xlim = c(-3, 3),
+  alim = c(-1, 1),
+  refline = 0,
+  rows = row_positions,
+  psize = 1,
+  header = c("Study", "Hedges' g [95% CI]"),
+  top = 2
+)
+
+# Add column header for delay
+text(-1.5, rows_total + 2, "Delay", cex = 0.75, font = 2)
+
+# Highlight pooled estimates with different symbols
+points(forest_data_final$hedges_g[subgroup_rows], 
+       row_positions[subgroup_rows], 
+       pch = 18, cex = 1.5, col = "blue")
+
+points(forest_data_final$hedges_g[overall_row], 
+       row_positions[overall_row], 
+       pch = 18, cex = 2, col = "red")
+
+# Add subgroup labels
+short_start <- min(which(forest_data_final$delay_category == "Short" & !forest_data_final$is_pooled))
+intermediate_start <- min(which(forest_data_final$delay_category == "Intermediate" & !forest_data_final$is_pooled))
+long_start <- min(which(forest_data_final$delay_category == "Long" & !forest_data_final$is_pooled))
+
+text(-3, row_positions[short_start] + 0.5, "Short Delays", pos = 4, font = 2, cex = 0.8)
+text(-3, row_positions[intermediate_start] + 0.5, "Intermediate Delays", pos = 4, font = 2, cex = 0.8)
+text(-3, row_positions[long_start] + 0.5, "Long Delays", pos = 4, font = 2, cex = 0.8)
+
+dev.off()
+
+cat("Forest plot saved to:", file.path(file_path, "forest_plot_categorical.pdf"), "\n")
+
+
+# ALTERNATIVE: CREATE A CLEANER FOREST PLOT USING BASE PLOTTING
+
+
+cat("\n\n=== CREATING ENHANCED FOREST PLOT ===\n")
+
+pdf(file.path(file_path, "forest_plot_categorical_enhanced.pdf"), width = 14, height = max(10, nrow(forest_data_final) * 0.25))
+
+# Calculate plot dimensions
+n_rows <- nrow(forest_data_final)
+y_positions <- n_rows:1
+
+# Set up plotting area with more space
+par(mar = c(5, 25, 4, 2), xpd = FALSE)
+
+# Determine x-axis limits
+x_min <- min(forest_data_final$ci_lower, na.rm = TRUE) - 0.2
+x_max <- max(forest_data_final$ci_upper, na.rm = TRUE) + 0.2
+
+# Create empty plot
+plot(0, 0, type = "n", 
+     xlim = c(x_min, x_max), 
+     ylim = c(0, n_rows + 3),
+     xlab = "Hedges' g (95% CI)", 
+     ylab = "",
+     yaxt = "n",
+     main = "Forest Plot: Immediate vs. Delayed Feedback by Delay Category",
+     cex.main = 1.2,
+     bty = "n")
+
+# Add vertical line at zero
+abline(v = 0, lty = 2, col = "gray50", lwd = 1)
+
+# Plot confidence intervals and points for individual studies
+for (i in 1:n_rows) {
+  if (!forest_data_final$is_pooled[i]) {
+    # Individual study
+    segments(
+      x0 = forest_data_final$ci_lower[i],
+      x1 = forest_data_final$ci_upper[i],
+      y0 = y_positions[i],
+      y1 = y_positions[i],
+      lwd = 1,
+      col = "gray30"
+    )
+    
+    points(
+      x = forest_data_final$hedges_g[i],
+      y = y_positions[i],
+      pch = 15,
+      cex = 0.8,
+      col = "gray30"
+    )
+  } else if (!is.na(forest_data_final$delay_category[i])) {
+    # Subgroup pooled estimate
+    segments(
+      x0 = forest_data_final$ci_lower[i],
+      x1 = forest_data_final$ci_upper[i],
+      y0 = y_positions[i],
+      y1 = y_positions[i],
+      lwd = 3,
+      col = "blue"
+    )
+    
+    points(
+      x = forest_data_final$hedges_g[i],
+      y = y_positions[i],
+      pch = 18,
+      cex = 1.8,
+      col = "blue"
+    )
+  } else {
+    # Overall pooled estimate
+    segments(
+      x0 = forest_data_final$ci_lower[i],
+      x1 = forest_data_final$ci_upper[i],
+      y0 = y_positions[i],
+      y1 = y_positions[i],
+      lwd = 4,
+      col = "red"
+    )
+    
+    points(
+      x = forest_data_final$hedges_g[i],
+      y = y_positions[i],
+      pch = 18,
+      cex = 2.2,
+      col = "red"
+    )
+  }
+}
+
+# Add study labels on the left
+par(xpd = TRUE)
+for (i in 1:n_rows) {
+  label_text <- forest_data_final$study_label[i]
+  font_style <- ifelse(forest_data_final$is_pooled[i], 2, 1)  # Bold for pooled
+  cex_size <- ifelse(forest_data_final$is_pooled[i], 0.8, 0.7)
+  
+  text(
+    x = x_min - 0.1 * (x_max - x_min),
+    y = y_positions[i],
+    labels = label_text,
+    pos = 2,
+    cex = cex_size,
+    font = font_style
+  )
+  
+  # Add effect size and CI on the right
+  es_text <- sprintf("%.2f [%.2f, %.2f]", 
+                     forest_data_final$hedges_g[i],
+                     forest_data_final$ci_lower[i],
+                     forest_data_final$ci_upper[i])
+  
+  text(
+    x = x_max + 0.05 * (x_max - x_min),
+    y = y_positions[i],
+    labels = es_text,
+    pos = 4,
+    cex = cex_size,
+    font = font_style
+  )
+}
+
+# Add subgroup separators
+for (cat_name in c("Short", "Intermediate", "Long")) {
+  cat_rows <- which(forest_data_final$delay_category == cat_name)
+  if (length(cat_rows) > 0) {
+    max_row <- min(cat_rows)
+    abline(h = y_positions[max_row] + 0.5, lty = 1, col = "gray70", lwd = 1)
+  }
+}
+
+# Add final separator before overall
+if (length(overall_row) > 0) {
+  abline(h = y_positions[overall_row] + 0.5, lty = 1, col = "black", lwd = 2)
+}
+
+par(xpd = FALSE)
+
+dev.off()
+
+cat("Enhanced forest plot saved to:", file.path(file_path, "forest_plot_categorical_enhanced.pdf"), "\n")
+
+
+# SAVE SUMMARY TO CSV (INCLUDING OVERALL)
+
+
+write.csv(results_categorical, 
+          file.path(file_path, "categorical_meta_analysis_results.csv"),
+          row.names = FALSE)
+
+cat("\nCategorical analysis results (including Overall) saved to CSV\n")
+
+# ============================================================================
+# FINAL SUMMARY
+# ============================================================================
+
+cat("\n\n" , "=== FINAL SUMMARY ===" , "\n")
+cat("\nCategorical Meta-Analysis Complete!\n")
+cat("\nFiles created:\n")
+cat("  1. categorical_meta_analysis.tex - LaTeX table with pooled estimates (including Overall)\n")
+cat("  2. categorical_meta_analysis_results.csv - Results in CSV format (including Overall)\n")
+cat("  3. forest_plot_categorical.pdf - Forest plot using metafor\n")
+cat("  4. forest_plot_categorical_enhanced.pdf - Enhanced forest plot\n")
+
+cat("\n\nPooled Effect Sizes by Category (including Overall):\n")
+print(results_categorical %>% select(Category, k, N, Estimate, CI_Lower, CI_Upper, p_value))
+```
+# 5- Forest Plots
+
+## Goruped Forest Plot
+
+```{r}
+
+# COMPACT FOREST PLOT WITH CATEGORICAL SUBGROUPS - CUSTOMIZED
+
+
+library(ggplot2)
+library(dplyr)
+
+cat("\n=== CREATING CUSTOMIZED CATEGORICAL FOREST PLOT ===\n")
+
+# Prepare data: Keep all individual effects (not averaged)
+forest_data_compact <- data_clean %>%
+  mutate(
+    ci_lower = hedges_g - 1.96 * se_g,
+    ci_upper = hedges_g + 1.96 * se_g,
+    type = "Individual Study",
+    # Create a combined study-effect identifier for ordering
+    study_effect = paste0("A_", unique_ID, "_", g_ID)  # Prefix with A_ for individual studies
+  ) %>%
+  select(unique_ID, g_ID, study_effect, delay_category, hedges_g, vi_g, se_g, ci_lower, ci_upper, type)
+
+# Count effects and studies per category
+category_counts <- data_clean %>%
+  group_by(delay_category) %>%
+  summarise(
+    n_studies = n_distinct(unique_ID),
+    n_effects = n(),
+    .groups = "drop"
+  )
+
+print(category_counts)
+
+# Add pooled estimates for each category (will be placed at the end)
+# EXCLUDE "Not Reported" category from pooled estimates
+pooled_by_category <- results_categorical %>%
+  filter(Category != "Not Reported" & Category != "Overall") %>%  # Exclude Not Reported and Overall
+  left_join(category_counts, by = c("Category" = "delay_category")) %>%
+  mutate(
+    unique_ID = paste0("POOLED_", Category),
+    g_ID = "pooled",
+    # Use Z_ prefix to ensure pooled effects sort to the END (Z comes after A)
+    study_effect = paste0("Z_POOLED_", Category),
+    hedges_g = Estimate,
+    vi_g = SE^2,
+    se_g = SE,
+    ci_lower = CI_Lower,
+    ci_upper = CI_Upper,
+    delay_category = Category,
+    type = "Subgroup Pooled",
+    display_label = sprintf("%s (Pooled)", Category)  # Remove k and N here
+  ) %>%
+  select(unique_ID, g_ID, study_effect, delay_category, hedges_g, vi_g, se_g, ci_lower, ci_upper, type, display_label)
+
+# Handle NA category (Not Reported) - NO POOLED EFFECT
+na_data <- forest_data_compact %>%
+  filter(is.na(delay_category)) %>%
+  mutate(delay_category = "Not Reported")
+
+# Get counts for NA category
+if (nrow(na_data) > 0) {
+  na_counts <- na_data %>%
+    summarise(
+      n_studies = n_distinct(unique_ID),
+      n_effects = n()
+    )
+  
+  # Update main data
+  forest_data_compact <- forest_data_compact %>%
+    mutate(delay_category = ifelse(is.na(delay_category), "Not Reported", delay_category))
+}
+
+# Add overall pooled estimate
+overall_counts <- data_clean %>%
+  summarise(
+    n_studies = n_distinct(unique_ID),
+    n_effects = n()
+  )
+
+overall_pooled_row <- tibble(
+  unique_ID = "OVERALL_POOLED",
+  g_ID = "overall",
+  study_effect = "Z_OVERALL_POOLED",
+  delay_category = "Overall",
+  hedges_g = g_feedback_time_corr_without_outliers$reg_table$b.r,
+  vi_g = g_feedback_time_corr_without_outliers$reg_table$SE^2,
+  se_g = g_feedback_time_corr_without_outliers$reg_table$SE,
+  ci_lower = g_feedback_time_corr_without_outliers$reg_table$CI.L,
+  ci_upper = g_feedback_time_corr_without_outliers$reg_table$CI.U,
+  type = "Overall Pooled",
+  display_label = "Overall (Pooled)"  # Remove k and N here since they're in the facet label
+)
+
+# Combine all data
+forest_plot_data <- bind_rows(
+  forest_data_compact,
+  pooled_by_category,
+  overall_pooled_row
+) %>%
+  mutate(
+    # Create display labels for individual studies
+    display_label = ifelse(
+      type == "Individual Study",
+      paste0(unique_ID, " (", g_ID, ")"),
+      display_label
+    ),
+    delay_category = factor(
+      delay_category, 
+      levels = c("Short", "Intermediate", "Long", "Not Reported", "Overall")
+    ),
+    type = factor(type, levels = c("Individual Study", "Subgroup Pooled", "Overall Pooled"))
+  ) %>%
+  # Sort to ensure within each category: Individual Studies first, then Pooled
+  arrange(delay_category, type, unique_ID, g_ID) %>%
+  # Reverse the order within each category so pooled appears at bottom visually
+  group_by(delay_category) %>%
+  mutate(plot_order = rev(row_number())) %>%
+  ungroup()
+
+# Add category labels with counts for facet strips (k and N in italic using expression)
+category_labels <- category_counts %>%
+  mutate(
+    label = sprintf("%s~'('*italic(k)*'='*%d*','~italic(N)*'='*%d*')'", 
+                   delay_category, 
+                   n_effects, 
+                   n_studies)
+  )
+
+# Add NA category label if exists
+if (exists("na_counts")) {
+  na_label <- tibble(
+    delay_category = "Not Reported",
+    label = sprintf("'Not Reported'~'('*italic(k)*'='*%d*','~italic(N)*'='*%d*')'", na_counts$n_effects, na_counts$n_studies)
+  )
+  category_labels <- bind_rows(category_labels, na_label)
+}
+
+# Add overall label
+overall_label <- tibble(
+  delay_category = "Overall",
+  label = sprintf("Overall~'('*italic(k)*'='*%d*','~italic(N)*'='*%d*')'", overall_counts$n_effects, overall_counts$n_studies)
+)
+category_labels <- bind_rows(category_labels, overall_label)
+
+# Create named vector for facet labels
+facet_labels <- setNames(
+  category_labels$label,
+  category_labels$delay_category
+)
+
+cat("\nForest plot data prepared:\n")
+cat("  Total rows:", nrow(forest_plot_data), "\n")
+cat("  Individual effects:", sum(forest_plot_data$type == "Individual Study"), "\n")
+cat("  Subgroup pooled:", sum(forest_plot_data$type == "Subgroup Pooled"), "\n")
+cat("  Overall pooled: 1\n")
+
+
+# CREATE THE FOREST PLOT
+
+
+# Create color palette
+colors <- c("Individual Study" = "gray40", 
+            "Subgroup Pooled" = "#2E86AB", 
+            "Overall Pooled" = "#A23B72")
+
+# Create shapes
+shapes <- c("Individual Study" = 16,  # circle
+            "Subgroup Pooled" = 18,  # diamond
+            "Overall Pooled" = 18)   # diamond
+
+# Create sizes
+sizes <- c("Individual Study" = 2, 
+           "Subgroup Pooled" = 4, 
+           "Overall Pooled" = 5)
+
+# Create the forest plot with LARGER FONT SIZES FOR EVERYTHING
+p_forest <- ggplot(forest_plot_data, 
+                   aes(x = hedges_g, 
+                       y = reorder(display_label, plot_order),  # Use plot_order for correct sequence
+                       color = type,
+                       shape = type,
+                       size = type)) +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "gray50", linewidth = 0.5) +
+  geom_errorbarh(aes(xmin = ci_lower, xmax = ci_upper), 
+                 height = 0.2, 
+                 linewidth = 0.5,
+                 alpha = 0.7) +
+  geom_point() +
+  scale_color_manual(values = colors, name = "Estimate Type") +
+  scale_shape_manual(values = shapes, name = "Estimate Type") +
+  scale_size_manual(values = sizes, name = "Estimate Type") +
+  facet_grid(delay_category ~ ., 
+             scales = "free_y", 
+             space = "free_y", 
+             switch = "y",
+             labeller = labeller(delay_category = as_labeller(facet_labels, default = label_parsed))) +
+  labs(
+    x = "Hedges' g (95% CI)",
+    y = "Delayed Feedback Delay"
+  ) +
+  theme_minimal() +
+  theme(
+    strip.text.y.left = element_text(angle = 0, hjust = 1, face = "bold", size = 14),  # Category labels - slightly smaller
+    strip.placement = "outside",
+    panel.spacing = unit(1.2, "lines"),  # More spacing between subgroups
+    panel.grid.major.y = element_blank(),
+    panel.grid.minor = element_blank(),
+    legend.position = "bottom",
+    legend.text = element_text(size = 13),  # Legend - LARGER
+    axis.text.y = element_text(size = 13),  # STUDY NAMES - LARGER
+    axis.text.x = element_text(size = 13),  # X-axis ticks - LARGER
+    axis.title.x = element_text(size = 15, face = "bold"),  # "Hedges' g" - LARGER
+    axis.title.y = element_text(size = 15, face = "bold"),  # "Delayed Feedback Delay" - LARGER
+    plot.title = element_blank()
+  )
+
+# Save the plot
+ggsave(
+  filename = file.path(file_path, "forest_plot_compact_custom.pdf"),
+  plot = p_forest,
+  width = 10,
+  height = max(8, nrow(forest_plot_data) * 0.15),
+  device = "pdf"
+)
+
+ggsave(
+  filename = file.path(file_path, "forest_plot_compact_custom.png"),
+  plot = p_forest,
+  width = 10,
+  height = max(8, nrow(forest_plot_data) * 0.15),
+  dpi = 300
+)
+
+cat("\nCustomized forest plot saved:\n")
+cat("  PDF:", file.path(file_path, "forest_plot_compact_custom.pdf"), "\n")
+cat("  PNG:", file.path(file_path, "forest_plot_compact_custom.png"), "\n")
+
+# Display the plot
+print(p_forest)
+
+
+# MINI VERSION (More Compact) - WITH LARGER FONTS AND MORE SPACING
+
+
+# Create shorter labels
+forest_plot_data_mini <- forest_plot_data %>%
+  mutate(
+    display_label_short = case_when(
+      type == "Overall Pooled" ~ display_label,
+      type == "Subgroup Pooled" ~ gsub("\\(Pooled.*", "(Pooled)", display_label),
+      TRUE ~ gsub(" \\(es_[0-9]+\\)", "", display_label)  # Remove effect IDs for cleaner look
+    )
+  )
+
+p_forest_mini <- ggplot(forest_plot_data_mini, 
+                        aes(x = hedges_g, 
+                            y = reorder(display_label_short, plot_order),  # Use plot_order for correct sequence
+                            color = type,
+                            shape = type,
+                            size = type)) +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "gray50", linewidth = 0.5) +
+  geom_errorbarh(aes(xmin = ci_lower, xmax = ci_upper), 
+                 height = 0.15, 
+                 linewidth = 0.4,
+                 alpha = 0.7) +
+  geom_point() +
+  scale_color_manual(values = colors, name = "") +
+  scale_shape_manual(values = shapes, name = "") +
+  scale_size_manual(values = sizes, name = "") +
+  facet_grid(delay_category ~ ., 
+             scales = "free_y", 
+             space = "free_y", 
+             switch = "y",
+             labeller = labeller(delay_category = as_labeller(facet_labels, default = label_parsed))) +
+  labs(
+    x = "Hedges' g (95% CI)",
+    y = "Delayed Feedback Delay"
+  ) +
+  theme_minimal() +
+  theme(
+    strip.text.y.left = element_text(angle = 0, hjust = 1, face = "bold", size = 13),  # Category labels - slightly smaller
+    strip.placement = "outside",
+    panel.spacing = unit(1.5, "lines"),  # MORE SPACING between subgroups
+    panel.grid.major.y = element_blank(),
+    panel.grid.minor = element_blank(),
+    legend.position = "bottom",
+    legend.text = element_text(size = 12),  # Legend - LARGER
+    axis.text.y = element_text(size = 12),  # STUDY NAMES - LARGER
+    axis.text.x = element_text(size = 12),  # X-axis ticks - LARGER
+    axis.title.x = element_text(size = 14, face = "bold"),  # "Hedges' g" - LARGER
+    axis.title.y = element_text(size = 14, face = "bold"),  # "Delayed Feedback Delay" - LARGER
+    plot.title = element_blank()
+  )
+
+# Save mini version
+ggsave(
+  filename = file.path(file_path, "forest_plot_mini_custom.pdf"),
+  plot = p_forest_mini,
+  width = 12,
+  height = max(6, nrow(forest_plot_data) * 0.12),
+  device = "pdf"
+)
+
+ggsave(
+  filename = file.path(file_path, "forest_plot_mini_custom.png"),
+  plot = p_forest_mini,
+  width = 12,
+  height = max(6, nrow(forest_plot_data) * 0.12),
+  dpi = 300
+)
+
+cat("\nMini customized forest plot saved:\n")
+cat("  PDF:", file.path(file_path, "forest_plot_mini_custom.pdf"), "\n")
+cat("  PNG:", file.path(file_path, "forest_plot_mini_custom.png"), "\n")
+
+print(p_forest_mini)
+
+
+# INTERACTIVE VERSION
+
+
+library(plotly)
+
+# Create hover text
+forest_plot_data <- forest_plot_data %>%
+  mutate(
+    hover_text = paste0(
+      "Study: ", unique_ID, "<br>",
+      "Effect: ", g_ID, "<br>",
+      "Category: ", delay_category, "<br>",
+      "Hedges' g: ", round(hedges_g, 3), "<br>",
+      "95% CI: [", round(ci_lower, 3), ", ", round(ci_upper, 3), "]", "<br>",
+      "Type: ", type
+    )
+  )
+
+# Convert to plotly (using mini version for better display)
+p_interactive <- ggplotly(p_forest_mini, tooltip = "text") %>%
+  layout(
+    autosize = TRUE,
+    height = max(600, nrow(forest_plot_data) * 15),
+    hovermode = "closest"
+  )
+
+# Save as HTML
+htmlwidgets::saveWidget(
+  p_interactive,
+  file.path(file_path, "forest_plot_interactive_custom.html"),
+  selfcontained = TRUE
+)
+
+cat("\nInteractive forest plot saved:", file.path(file_path, "forest_plot_interactive_custom.html"), "\n")
+
+
+# SUMMARY
+
+
+cat("\n\n=== CUSTOMIZED FOREST PLOTS CREATED ===\n")
+cat("\nAll requested changes implemented:\n")
+cat("  ✓ Multiple effects from same study plotted separately\n")
+cat("  ✓ Subgroup pooled effects at the END of each group (A_ vs Z_ prefix)\n")
+cat("  ✓ 'Not Reported' category added (NO pooled effect)\n")
+cat("  ✓ No plot title\n")
+cat("  ✓ Y-axis labeled as 'Delayed Feedback Delay'\n")
+cat("  ✓ Category labels include k (effects) and N (studies)\n")
+cat("  ✓ LARGER font sizes for ALL text (categories, axis titles, study names)\n")
+cat("  ✓ Increased spacing between subgroups\n")
+
+cat("\n\nFiles created:\n")
+cat("  1. forest_plot_compact_custom.pdf/.png - Main version\n")
+cat("  2. forest_plot_mini_custom.pdf/.png - Compact version\n")
+cat("  3. forest_plot_interactive_custom.html - Interactive version\n")
+```
+
+
+```{r}
+
+# MINI VERSION (More Compact) - WITH LARGER FONTS AND MORE SPACING
+
+
+# Create shorter labels
+forest_plot_data_mini <- forest_plot_data %>%
+  mutate(
+    display_label_short = case_when(
+      type == "Overall Pooled" ~ display_label,
+      type == "Subgroup Pooled" ~ gsub("\\(Pooled.*", "(Pooled)", display_label),
+      TRUE ~ gsub(" \\(es_[0-9]+\\)", "", display_label)  # Remove effect IDs for cleaner look
+    )
+  )
+
+# Get data for the Overall category only
+overall_data <- forest_plot_data_mini %>%
+  filter(delay_category == "Overall")
+
+p_forest_mini <- ggplot(forest_plot_data_mini, 
+                        aes(x = hedges_g, 
+                            y = reorder(display_label_short, plot_order),  # Use plot_order for correct sequence
+                            color = type,
+                            shape = type,
+                            size = type)) +
+  geom_vline(xintercept = 0, linetype = "dashed", color = "gray50", linewidth = 0.5) +
+  geom_errorbarh(aes(xmin = ci_lower, xmax = ci_upper), 
+                 height = 0.15, 
+                 linewidth = 0.4,
+                 alpha = 0.7) +
+  geom_point() +
+  # Add arrows only for Overall category
+  geom_segment(data = overall_data,
+               aes(x = 0, y = 0.5, 
+                   xend = 2, 
+                   yend = 0.5), 
+               arrow = arrow(length = unit(0.2, "cm")), color = "#893F45",linewidth = 0.3) +
+  geom_segment(data = overall_data,
+               aes(x = 0, y = 0.5, 
+                   xend = -2, 
+                   yend = 0.5), 
+               arrow = arrow(length = unit(0.2, "cm")), color = "#893F45",linewidth = 0.3) +
+  # Add text labels only for Overall category
+  geom_text(data = overall_data,
+            aes(x = max(forest_plot_data_mini$hedges_g, na.rm = TRUE) , 
+                y = 1),
+            label = "Favours immediate feedback", hjust = 0.5, color = "#893F45", size = 4,
+            inherit.aes = FALSE) +
+  geom_text(data = overall_data,
+            aes(x = min(forest_plot_data_mini$hedges_g, na.rm = TRUE) , 
+                y = 1),
+            label = "Favours delayed feedback", hjust = 0.5, color = "#893F45", size = 4,
+            inherit.aes = FALSE) +
+  scale_color_manual(values = colors, name = "") +
+  scale_shape_manual(values = shapes, name = "") +
+  scale_size_manual(values = sizes, name = "") +
+  facet_grid(delay_category ~ ., 
+             scales = "free_y", 
+             space = "free_y", 
+             switch = "y",
+             labeller = labeller(delay_category = as_labeller(facet_labels, default = label_parsed))) +
+  labs(
+    x = "Hedges' g (95% CI)",
+    y = "Delayed Feedback Delay"
+  ) +
+  theme_minimal() +
+  theme(
+    strip.text.y.left = element_text(angle = 0, hjust = 1, face = "bold", size = 13),
+    strip.placement = "outside",
+    panel.spacing = unit(1.5, "lines"),
+    panel.grid.major.y = element_blank(),
+    panel.grid.minor = element_blank(),
+    legend.position = "bottom",
+    legend.text = element_text(size = 12),
+    axis.text.y = element_text(size = 12),
+    axis.text.x = element_text(size = 12),
+    axis.title.x = element_text(size = 14, face = "bold"),
+    axis.title.y = element_text(size = 14, face = "bold"),
+    plot.title = element_blank()
+  )
+
+# Save mini version
+ggsave(
+  filename = file.path(file_path, "forest_plot_mini_custom.pdf"),
+  plot = p_forest_mini,
+  width = 12,
+  height = max(6, nrow(forest_plot_data) * 0.12),
+  device = "pdf"
+)
+
+ggsave(
+  filename = file.path(file_path, "forest_plot_mini_custom.png"),
+  plot = p_forest_mini,
+  width = 12,
+  height = max(6, nrow(forest_plot_data) * 0.12),
+  dpi = 300
+)
+
+cat("\nMini customized forest plot saved:\n")
+cat("  PDF:", file.path(file_path, "forest_plot_mini_custom.pdf"), "\n")
+cat("  PNG:", file.path(file_path, "forest_plot_mini_custom.png"), "\n")
+
+print(p_forest_mini)
+```
+
+
+## Big Forest Plot
 ```{r}
 # Load necessary libraries
 library(htmltools)   # For saving HTML files
@@ -1239,169 +2969,36 @@ cat(latex_table)
 
 ## 6.3- Funnel Plot after trimfill 
 
+### funnel with directions
+
 ```{r}
-# 1- correction
-# first we need to run a rma model using metafor package since trimfill cannot be applied to multidimentional models
-rma_model_for_trimfill <- rma(hedges_g, vi_g, data=data_clean, measure="OR")
-
-tf_result <- trimfill(rma_model_for_trimfill)
-tf_result
-
-# 2-Find the filled data
-# Create the filled_data data frame
-filled_data <- data.frame(
-  EffectSize = tf_result$yi,
-  Variance = tf_result$vi,
-  StandartError = sqrt(tf_result$vi) 
-)
-
-# Add unique_ID column
-filled_data$unique_ID <- NA  # Initialize all as NA to handle different lengths
-filled_data$new_old<- NA
-# Fill in original IDs
-original_length <- min(length(data_clean$unique_ID), length(filled_data$EffectSize))
-filled_data$unique_ID[1:original_length] <- data_clean$unique_ID
-filled_data$new_old[1:original_length] <- 0
-# Generate new unique IDs for extra imputed rows, if any
-if (length(filled_data$EffectSize) > length(data_clean$unique_ID)) {
-  # Starting point for new IDs
-  new_id_start <- length(data_clean$unique_ID) + 1
-  # Number of new IDs needed
-  new_ids_count <- length(filled_data$EffectSize) - length(data_clean$unique_ID)
-  # Create new IDs
-  new_ids <- seq(from = new_id_start, length.out = new_ids_count)
-  # Assign new IDs to the additional rows
-  filled_data$unique_ID[(original_length + 1):length(filled_data$EffectSize)] <- new_ids
-  filled_data$new_old[(original_length + 1):length(filled_data$EffectSize)] <- 1
-}
-
-head(filled_data)
-tail(filled_data)  # To check the newly assigned IDs at the end
-
-# 3- Rerun the model
-corrected_g_feedback_time_corr_without_outliers  <-  robu(formula = EffectSize ~ 1, data = filled_data,
-                            studynum = unique_ID, var.eff.size = Variance,
-                            rho = 0.8,  modelweights = "CORR", small = FALSE)
-print(corrected_g_feedback_time_corr_without_outliers)
-
-# Extract for Latex
-# Extract reg_table from your model
-reg_table <- corrected_g_feedback_time_corr_without_outliers$reg_table
-
-# Number of effect sizes (k)
-k <- nrow(corrected_g_feedback_time_corr_without_outliers$data.full)
-
-# Main description for the subset
-subset_description <- "Immediate vs. delayed feedback"
-
-# Assuming reg_table is derived from your 'robu' model
-# We'll place each value in its corresponding column now
-results_table <- tibble(
-  Statistic = c(
-    "Immediate vs. delayed feedback", 
-    "Num. Obs.", "N", "rho", "I^2", "tau^2"
-  ),
-  Estimate = c(
-    as.character(round(corrected_g_feedback_time_corr_without_outliers$reg_table$b.r, 2)),  # g value
-    as.character(nrow(corrected_g_feedback_time_corr_without_outliers$data.full)),  # Num. Obs.
-    as.character(length(unique(corrected_g_feedback_time_corr_without_outliers$data.full$study))),  # N
-    as.character(corrected_g_feedback_time_corr_without_outliers$mod_info$rho),  # rho
-    as.character(format(corrected_g_feedback_time_corr_without_outliers$mod_info$I.2, digits = 2)),  # I^2
-    as.character(format(corrected_g_feedback_time_corr_without_outliers$mod_info$tau.sq, digits = 4))  # tau^2
-  ),
-  `Std. Error` = c(
-    as.character(round(corrected_g_feedback_time_corr_without_outliers$reg_table$SE, 2)),  # SE value
-    "", "", "", "", ""  # Empty for additional stats
-  ),
-  `t Statistic` = c(
-    as.character(round(corrected_g_feedback_time_corr_without_outliers$reg_table$t, 2)),  # t value
-    "", "", "", "", ""  # Empty for additional stats
-  ),
-  `P value` = c(
-    format.pval(corrected_g_feedback_time_corr_without_outliers$reg_table$prob, digits = 3, eps = 0.001, na.form = "<.001"),  # P-value
-    "", "", "", "", ""  # Empty for additional stats
-  ),
-  `95% CI` = c(
-    paste0("[", round(corrected_g_feedback_time_corr_without_outliers$reg_table$CI.L, 2), ", ", round(corrected_g_feedback_time_corr_without_outliers$reg_table$CI.U, 2), "]"),  # 95% CI
-    "", "", "", "", ""  # Empty for additional stats
-  ),
-  `Sig` = c(
-    corrected_g_feedback_time_corr_without_outliers$reg_table$sig,  # Significance
-    "", "", "", "", ""  # Empty for additional stats
-  )
-)
-
-# Create the LaTeX table using kableExtra
-latex_table <- results_table %>%
-  kbl(
-    format = "latex",
-    booktabs = TRUE,
-    align = "lllllll",  # Alignment for each column
-    col.names = c("Statistic", "Estimate", "Std. Error", "t Statistic", "P value", "95% CI", "Sig")
-  ) %>%
-  kable_styling(
-    latex_options = c("hold_position"),
-    full_width = FALSE
-  ) %>%
-  add_header_above(c(" " = 1, "Robust Variance Estimates Model (Corrected)" = 6)) %>%
-  row_spec(
-    0,  # Insert a horizontal line after the description of the subset
-    extra_latex_after = "\\midrule"
-  )
-
-# Write the LaTeX table to a .tex file
-tex_filename <- normalizePath(file.path(file_path, "model_trimfillcorrected.tex"), mustWork = FALSE)
-tryCatch({
-  cat(latex_table, file = tex_filename)
-  if (file.exists(tex_filename)) {
-    message("File successfully created: ", tex_filename)
-  } else {
-    warning("Failed to create file: ", tex_filename)
-  }
-}, error = function(e) {
-  warning("An error occurred while writing file: ", e$message)
-})
-
-# Print the LaTeX table
-cat(latex_table)
-
-
-
-# 4- Funnel Plot with filled points
-
-result_model= corrected_g_feedback_time_corr_without_outliers$reg_table
+result_model= g_feedback_time_corr_without_outliers$reg_table
 ## define estimate and se
 estimate = result_model$b.r
 se = result_model$SE
-
 #Store a vector of values that spans the range from 0 to the max value of impression (standard error) in your dataset.
 #Make the increment (the final value) small enough (I choose 0.001) to ensure your whole range of data is captured
 se.seq=seq(0, max(data_clean$se_g), 0.001)
-
 #Compute vectors of the lower-limit and upper limit values for
 #the 95% CI region
 ll95 = estimate-(1.96*se.seq)
 ul95 = estimate+(1.96*se.seq)
-
 #Do this for a 99% CI region too
 ll99 = estimate-(3.29*se.seq)
 ul99 = estimate+(3.29*se.seq)
-
 #And finally, calculate the confidence interval for your meta-analytic estimate 
 # directly capture from the RVE model
 meanll95 = result_model$CI.L
 meanul95 = result_model$CI.U
-
 #Put all calculated values into one data frame
 #You might get a warning about '...row names were found from a short variable...' 
 #You can ignore it.
 dfCI = data.frame(ll95, ul95, ll99, ul99, se.seq, estimate, meanll95, meanul95)
-
 #Draw Plot
 library(ggplot2)
-fp_fixD = ggplot(aes(x = StandartError, y = EffectSize), data = filled_data) +
-  geom_point(aes(fill = factor(new_old)),shape = 21) +
-  xlab('Standard Error') + ylab('Effect sizes (Hedges g)') + 
+fp_fixD = ggplot(aes(x = se_g, y = hedges_g), data = data_clean) +
+  geom_point(shape = 1) +
+ xlab('Standard Error') + ylab("Hedges' g") +
   geom_line(aes(x = se.seq, y = ll95), linetype = 'dashed', data = dfCI) +
   geom_line(aes(x = se.seq, y = ul95), linetype = 'dashed', data = dfCI) +
   geom_line(aes(x = se.seq, y = ll99), linetype = 'dashed', data = dfCI) +
@@ -1409,18 +3006,23 @@ fp_fixD = ggplot(aes(x = StandartError, y = EffectSize), data = filled_data) +
   geom_segment(aes(x = min(se.seq), y = meanll95, xend = max(se.seq), yend = meanll95), linetype='solid', data=dfCI) +
   geom_segment(aes(x = min(se.seq), y = meanul95, xend = max(se.seq), yend = meanul95), linetype='solid', data=dfCI) +
   geom_segment(aes(x = min(se.seq), y = estimate, xend = max(se.seq), yend = estimate), linetype='solid', colour ="red", data=dfCI) +
+  # Add arrows pointing outward from center (y=0)
+  geom_segment(aes(x = min(se.seq), y = 0, xend = min(se.seq), yend = max(data_clean$hedges_g, na.rm = TRUE)), 
+               arrow = arrow(length = unit(0.2, "cm")), color = "#893F45") +
+  geom_segment(aes(x = min(se.seq), y = 0, xend = min(se.seq), yend = min(data_clean$hedges_g, na.rm = TRUE)), 
+               arrow = arrow(length = unit(0.2, "cm")), color = "#893F45") +
+  # Add text labels
+  annotate("text", x = min(se.seq) - 0.02, y = max(data_clean$hedges_g, na.rm = TRUE) / 2, 
+           label = "Favours immediate feedback", hjust = 0.5, color = "#893F45", size = 6) +
+  annotate("text", x = min(se.seq) - 0.02, y = min(data_clean$hedges_g, na.rm = TRUE) / 2, 
+           label = "Favours delayed feedback", hjust = 0.5, color = "#893F45", size = 6) +
   scale_x_reverse() +
   scale_y_continuous(breaks=seq(-12.5,2.50,0.50))+
   coord_flip()+
-  scale_fill_manual(values = c("0" = "white", "1" = "black")) +
-  guides(fill = "none") + 
   theme_classic() +
-   plot_theme
-
+  plot_theme
 fp_fixD 
-
-ggsave("funnel_after_correction.png", plot = fp_fixD, width = 10, height = 8, dpi = 300)
-
+ggsave("fig_funnel_before_correction.png", plot = fp_fixD, width = 10, height = 8, dpi = 300)
 ```
 
 # 7- Moderators
@@ -1723,10 +3325,6 @@ exploratory_moderators_plot_list= c(
   "answer_time",
   "retention_interval"
 )
-    
-moderator_plots_list=moderator_plots(for_moderator_plots_exploratory, "", moderators_list=exploratory_moderators_plot_list, threshold_for_moderator= 2, common_plot = FALSE, remove_small_groups=FALSE)
-
-moderator_plots_list
 
 ```
 
@@ -1915,92 +3513,6 @@ calculate_moderator_models <- function(input_data, moderators, list_report = FAL
 
 ```
 
-
-Function: Big Table for Moderators Model
-
-```{r}
-generate_combined_latex_table <- function(moderator_model_output, output_name, file_path = getwd()) {
-  
-  # Ensure the file path is valid and normalize it
-  file_path <- normalizePath(file_path, mustWork = FALSE)
-  
-  # Create directory if it does not exist
-  if (!dir.exists(file_path)) {
-    dir.create(file_path, recursive = TRUE)
-    message("Directory created: ", file_path)
-  }
-  
-  message("Saving LaTeX table to: ", file_path)
-  
-  # Combine and reshape data
-  wide_table <- bind_rows(
-    lapply(names(moderator_model_output), function(name) {
-      df <- moderator_model_output[[name]]
-      df %>%
-        mutate(
-          Variable = name,
-          Row = row_number(),
-          Combined = paste0(
-            "", sprintf("%.3f", g), " [SE = ", sprintf("%.3f", SE), "]\n",
-            "t = ", sprintf("%.3f", t), "\n",
-            "p = ", p, " ", sig
-          )
-        ) %>%
-        select(Row, Variable, Test, Combined)  # Keep only the necessary columns
-    })
-  ) %>%
-  pivot_wider(
-    names_from = Variable,
-    values_from = Combined  # Use the combined column
-  ) %>%
-  select(-Row)  # Remove the Row column if not needed
-  
-  # Replace NA values with an empty string in the wide_table
-  wide_table <- wide_table %>%
-    mutate(across(everything(), ~ ifelse(is.na(.), "", .)))
-  
-  # Generate the rotated LaTeX table directly
-  latex_table <- wide_table %>%
-    kbl(
-      format = "latex",
-      booktabs = TRUE,  # Minimalistic borders
-      linesep = "",     # Removes extra spacing between rows
-      align = "l",      # Left-align all columns
-      caption = "Moderator Effects on Feedback Timing"
-    ) %>%
-    kable_styling(
-      latex_options = c("hold_position"),  # Keep position fixed
-      full_width = FALSE,                 # Tables should not stretch full-width
-      font_size = 10                      # Adjust font size to APA standards
-    ) %>%
-    footnote(
-      general = "Results of meta-regressions for moderator variables.",
-      threeparttable = TRUE
-    ) %>%
-    row_spec(0, bold = TRUE) %>%
-    as.character()  # Convert to a LaTeX string
-  
-  # Write the LaTeX table to a .tex file
-  tex_filename <- normalizePath(file.path(file_path, paste0("table_moderator_", output_name, ".tex")), mustWork = FALSE)
-  
-  tryCatch({
-    cat(latex_table, file = tex_filename)
-    
-    if (file.exists(tex_filename)) {
-      message("File successfully created: ", tex_filename)
-    } else {
-      warning("Failed to create file: ", tex_filename)
-    }
-  }, error = function(e) {
-    warning("An error occurred while writing the LaTeX file for output '", output_name, "': ", e$message)
-  })
-}
-
-
-```
-
-
-
 ## 7.2 Preregistered Moderators
 
 ```{r}
@@ -2039,7 +3551,6 @@ moderator_models_preregistered <- calculate_moderator_models(input_data = data_c
 
 moderator_models_preregistered
 
-generate_combined_latex_table(moderator_models_preregistered, "preregistered", file_path = getwd())
 ```
 
 small number adjustment
@@ -2066,7 +3577,6 @@ moderator_models_preregistered <- calculate_moderator_models(input_data = data_c
 
 moderator_models_preregistered
 
-generate_combined_latex_table(moderator_models_preregistered, "preregistered", file_path = getwd())
 
 ```
 
@@ -2102,7 +3612,6 @@ moderator_models_preregistered_timeonly <- calculate_moderator_models(input_data
 
 moderator_models_preregistered_timeonly
 
-generate_combined_latex_table(moderator_models_preregistered_timeonly, "preregistered_timeonly", file_path = getwd())
 
 ```
 
@@ -2139,7 +3648,6 @@ moderator_models_preregistered_itemonly <- calculate_moderator_models(input_data
 
 moderator_models_preregistered_itemonly
 
-generate_combined_latex_table(moderator_models_preregistered_itemonly, "preregistered_itemonly", file_path = getwd())
 
 ```
 combine them
@@ -2155,7 +3663,6 @@ combined_item_time <- list(
 combined_item_time
 
 
-generate_combined_latex_table(combined_item_time, "combined_item_time", file_path = getwd())
 
 
 ```
@@ -2248,7 +3755,6 @@ moderator_models_exploratory <- calculate_moderator_models(input_data = data_cle
 moderator_models_exploratory
 
 
-generate_combined_latex_table(moderator_models_exploratory, "exploratory", file_path = getwd())
 
 ```
 
@@ -2333,7 +3839,7 @@ moderator_educational_level
 ```{r}
 # Define the list of moderators
 #"educational_level_tertiary_others","learning_domain", "memory_retrieval_vs_knowledge_application", "year", "time_limit_for_answer"
-significant_moderators <- c("educational_level_formetareg","learning_domain_formetareg", "memory_retrieval_vs_knowledge_application", "time_limit_for_answer_include_not_reported"
+significant_moderators <- c("educational_level_formetareg","learning_domain_formetareg", "time_limit_for_answer_include_not_reported"
 )
 
 # Run the function
@@ -2346,91 +3852,135 @@ moderator_models_significant_moderators <- calculate_moderator_models(input_data
 
 moderator_models_significant_moderators
 
-generate_combined_latex_table(moderator_models_significant_moderators, "significants", file_path = getwd())
 
-```
-
-```{r}
-moderator_plots_list_significant=moderator_plots(data_clean, "", moderators_list=significant_moderators, threshold_for_moderator= 2, common_plot = FALSE, remove_small_groups=FALSE)
-
-moderator_plots_list_significant
 ```
 
 # 8- Correlation Plot
 
-### Function: correlation or distribution (for binary variables)
-
 ```{r}
 plot_correlations <- function(data, ref_variable, list_correlation_variables) {
+  library(ggplot2)
+  library(gridExtra)  # For arranging subplots
+  library(broom)  # For extracting model stats
+  library(robumeta)  # For robust regression models
+
   plots <- list()  # Initialize an empty list to store plots
 
   for (var in list_correlation_variables) {
-    # Check if the variable is numeric or not
+    var_title <- gsub("_", " ", var)
+    # Check if the variable is numeric or categorical
     if (is.numeric(data[[var]])) {
       # Fit the linear model for numeric variables
       model <- lm(as.formula(paste(ref_variable, var, sep=" ~ ")), data = data)
-      # Extract model statistics
       model_stats <- broom::tidy(model)
       r_squared <- summary(model)$r.squared
       p_value <- model_stats$p.value[2]  # Assuming slope is the second coefficient
-      slope <- model_stats$estimate[2]   # slope of the regression line
-      intercept <- model_stats$estimate[1]  # intercept of the regression line
+      slope <- model_stats$estimate[2]   # Slope of the regression line
+      intercept <- model_stats$estimate[1]  # Intercept of the regression line
 
-      # Format the statistics for display
-      stats_text <- paste0(
-        "Slope = ", round(slope, 3), 
-        "\nIntercept = ", round(intercept, 3), 
-        "\nR² = ", round(r_squared, 3), 
-        "\np = ", ifelse(p_value < 0.001, "< 0.001", round(p_value, 3))
-      )
-
-      # Create the scatter plot with regression line
+      # Create the scatter plot with regression line (gray theme)
       plot <- ggplot(data, aes_string(x = ref_variable, y = var)) +
-        geom_point(color = "#5E81AC", alpha = 0.6, size = 3) +
-        geom_smooth(method = "lm", color = "#893F45", se = TRUE) +
-        labs(x = ref_variable, y = var)
-        # annotate("text", x = max(data[[ref_variable]], na.rm = TRUE) * 0.7, 
-        #          y = max(data[[var]], na.rm = TRUE) * 0.9 ,
-        #          label = stats_text, hjust = 0, vjust = 1, size = 4, color = "black", fontface = "bold"
-        #          )
+        geom_point(color = "gray50", alpha = 0.6, size = 3) +  # Grey scatter points
+        geom_smooth(method = "lm", color = "black", se = TRUE) +  # Black regression line
+        labs(x = ref_variable, y = gsub("_", " ", var)) +
+        theme_minimal() +
+        theme(
+          axis.title = element_text(size = 12, face = "bold"),
+          plot.title = element_text(hjust = 0.5),
+          legend.position = "none"
+        ) +
+        ggtitle(var_title) +  # Add formatted title
+        plot_theme +
+        theme(legend.position = "none")
+
     } else {
-      # Create the half-violin plot for non-numeric variables
+      # Create the half-violin plot for categorical variables
       plot <- ggplot(data, aes_string(x = var, y = ref_variable, fill = var)) +
-        geom_violin(trim = TRUE, scale = "area", draw_quantiles = NULL, adjust = 1, width = 0.8) +
-        scale_y_continuous(limits = function(x) c(min(x, na.rm = TRUE) - diff(range(x, na.rm = TRUE)) * 0.1, max(x, na.rm = TRUE))) +
-        geom_jitter(width = 0.05, color = "#4C566A", alpha = 0.9, size = 1.5) +  # Adding jittered points
+        geom_violin(trim = TRUE, scale = "area", adjust = 1, width = 0.8, fill = "gray70") +  # Removed draw_quantiles
+        geom_jitter(width = 0.05, color = "#5A75AA", alpha = 0.9, size = 3) +  # Grey jittered points
         coord_flip() +
-        labs(x = "", y = ref_variable)
-      }
-    
-    # Add common labels and themes
-    plot <- plot +
-            theme_minimal() +
-                        theme(axis.title = element_text(size = 12, face = "bold"),
-                  plot.title = element_text(hjust = 0.5))+  # Hide legend
-      plot_theme+
-      theme(legend.position = "none")
+        labs(x = "", y = gsub("_", " ", ref_variable)) +
+        theme_minimal() +
+        theme(
+          axis.title = element_text(size = 12, face = "bold"),
+          plot.title = element_text(hjust = 0.5),
+          legend.position = "none"
+        ) +
+        ggtitle(var_title) +  # Add formatted title
+        plot_theme +
+        theme(legend.position = "none")
+    }
+
     # Add plot to list
     plots[[var]] <- plot
+
+    # Print robust regression model for each variable
+    combined_moderators <- c(ref_variable, var)
+    combined_formula <- paste(combined_moderators, collapse = " + ")
+    combined_model <- robu(
+      formula = as.formula(paste0("hedges_g ~ ", combined_formula)), 
+      data = data, 
+      studynum = unique_ID, 
+      var.eff.size = vi_g, 
+      rho = rho, 
+      modelweights = "HIER", 
+      small = FALSE
+    )
+    
+    print(combined_model)  # Print model output
   }
-  
-  return(plots)
+
+  # Create subplot arrangement (2 per row)
+  num_plots <- length(plots)
+  ncol <- 2  # 2 plots per row
+  nrow <- ceiling(num_plots / ncol)
+
+  # Arrange plots into one combined plot
+  combined_plot <- do.call(grid.arrange, c(plots, ncol = ncol, nrow = nrow))
+
+  # Save the final combined plot
+  ggsave("total_correlation.png", combined_plot, width = 20, height = 6 * nrow)
+
+  return(combined_plot)
 }
 
-```
+# Create a new dataframe for correlation analysis and rename columns
+for_correlation <- data_clean %>%
+  select(
+    unique_ID, 
+    hedges_g, 
+    vi_g, 
+    year, 
+    educational_level_formetareg, 
+    learning_domain_formetareg, 
+    time_limit_for_answer_include_not_reported
+  ) %>%
+  rename(
+    publication_year = year,
+    educational_level = educational_level_formetareg,
+    learning_domain = learning_domain_formetareg,
+    time_limitation_for_responses = time_limit_for_answer_include_not_reported
+  )
 
+# Function to replace underscores with spaces in all character columns
+replace_underscore <- function(df) {
+  df %>%
+    mutate(across(where(is.character), ~ gsub("_", " ", .)))
+}
 
-### 8.1 year and other sig moderators
+# Apply the function to rename values
+for_correlation <- replace_underscore(for_correlation)
 
-```{r}
-ref_variable = "year"
+# Define the significant categorical moderators with spaces instead of underscores
+significant_moderators <- c("educational_level", 
+                            "learning_domain", 
+                            "time_limitation_for_responses")
 
-#list_correlation_variables: 
-#significant_moderators
-#preregistered_moderators
-#exploratory_moderators
-# Call the function
-correlation_plots <- plot_correlations(data_clean, ref_variable, list_correlation_variables=significant_moderators)
+# Update reference variable name to match the renamed column
+ref_variable <- "publication_year"
+
+# Call the function using the for_correlation dataset
+correlation_plots <- plot_correlations(for_correlation, ref_variable, list_correlation_variables = significant_moderators)
 
 # Print the plots
 if (!is.null(correlation_plots)) {
@@ -2438,8 +3988,93 @@ if (!is.null(correlation_plots)) {
     print(correlation_plots[[plot_name]])
   }
 }
-
 ```
 
+# 9- statistics of immediate and delayed delays
 
+```{r}
+
+# Filter time-based data
+time_data <- subset(data_clean, delay_definition == "seconds")
+
+# Compute statistics
+summary_time <- time_data %>%
+  summarise(
+    mean_i = mean(delay_i.seconds.item., na.rm = TRUE),
+    sd_i = sd(delay_i.seconds.item., na.rm = TRUE),
+    median_i = median(delay_i.seconds.item., na.rm = TRUE),
+    min_i = min(delay_i.seconds.item., na.rm = TRUE),
+    max_i = max(delay_i.seconds.item., na.rm = TRUE),
+    
+    mean_d = mean(delay_d.seconds.item., na.rm = TRUE),
+    sd_d = sd(delay_d.seconds.item., na.rm = TRUE),
+    median_d = median(delay_d.seconds.item., na.rm = TRUE),
+    min_d = min(delay_d.seconds.item., na.rm = TRUE),
+    max_d = max(delay_d.seconds.item., na.rm = TRUE)
+  )
+
+# Generate formatted text
+cat(sprintf(
+  "Among studies that defined delay in seconds (time-based), the mean delay for immediate feedback was %.2f seconds (SD = %.2f, median = %.2f, range = %.2f–%.2f), and for delayed feedback it was %.2f seconds (SD = %.2f, median = %.2f, range = %.2f–%.2f).",
+  summary_time$mean_i, summary_time$sd_i, summary_time$median_i, summary_time$min_i, summary_time$max_i,
+  summary_time$mean_d, summary_time$sd_d, summary_time$median_d, summary_time$min_d, summary_time$max_d
+))
+
+geo_mean <- function(x) {
+  exp(mean(log(x[x > 0]), na.rm = TRUE))  # avoid zeros
+}
+
+
+summary_time <- time_data %>%
+  summarise(
+    mean_i = mean(delay_i.seconds.item., na.rm = TRUE),
+    sd_i = sd(delay_i.seconds.item., na.rm = TRUE),
+    median_i = median(delay_i.seconds.item., na.rm = TRUE),
+    min_i = min(delay_i.seconds.item., na.rm = TRUE),
+    max_i = max(delay_i.seconds.item., na.rm = TRUE),
+    
+    geo_mean_d = geo_mean(delay_d.seconds.item.),
+    sd_d = sd(delay_d.seconds.item., na.rm = TRUE),
+    median_d = median(delay_d.seconds.item., na.rm = TRUE),
+    min_d = min(delay_d.seconds.item., na.rm = TRUE),
+    max_d = max(delay_d.seconds.item., na.rm = TRUE)
+  )
+
+# Generate formatted text
+cat(sprintf(
+  "Among studies that defined delay in seconds (time-based), the mean delay for immediate feedback was %.2f seconds (SD = %.2f, median = %.2f, range = %.2f–%.2f), and for delayed feedback it was approximately %.2f seconds (geometric mean, SD = %.2f, median = %.2f, range = %.2f–%.2f).",
+  summary_time$mean_i, summary_time$sd_i, summary_time$median_i, summary_time$min_i, summary_time$max_i,
+  summary_time$geo_mean_d, summary_time$sd_d, summary_time$median_d, summary_time$min_d, summary_time$max_d
+))
+
+
+# Filter item-based data
+item_data <- subset(data_clean, delay_definition == "item")
+
+# Compute statistics
+summary_item <- item_data %>%
+  summarise(
+    mean_i = mean(delay_i.seconds.item., na.rm = TRUE),
+    sd_i = sd(delay_i.seconds.item., na.rm = TRUE),
+    median_i = median(delay_i.seconds.item., na.rm = TRUE),
+    min_i = min(delay_i.seconds.item., na.rm = TRUE),
+    max_i = max(delay_i.seconds.item., na.rm = TRUE),
+    
+    mean_d = mean(delay_d.seconds.item., na.rm = TRUE),
+    sd_d = sd(delay_d.seconds.item., na.rm = TRUE),
+    median_d = median(delay_d.seconds.item., na.rm = TRUE),
+    min_d = min(delay_d.seconds.item., na.rm = TRUE),
+    max_d = max(delay_d.seconds.item., na.rm = TRUE)
+  )
+
+# Generate formatted text
+cat(sprintf(
+  "Among studies that defined delay in terms of item count, the mean delay for immediate feedback was %.2f items (SD = %.2f, median = %.2f, range = %.2f–%.2f), and for delayed feedback it was %.2f items (SD = %.2f, median = %.2f, range = %.2f–%.2f).",
+  summary_item$mean_i, summary_item$sd_i, summary_item$median_i, summary_item$min_i, summary_item$max_i,
+  summary_item$mean_d, summary_item$sd_d, summary_item$median_d, summary_item$min_d, summary_item$max_d
+))
+
+
+
+```
 
